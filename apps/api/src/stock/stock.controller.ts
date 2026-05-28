@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import type { JwtPayload } from '@brick/types';
 import { CurrentOrg } from '../common/decorators/current-org.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { StockService } from './stock.service';
 import { CreateStockBatchDto, StockQueryDto } from './dto/stock.dto';
@@ -15,8 +17,12 @@ export class StockController {
 
   @Roles('OWNER', 'MANAGER')
   @Post('batches')
-  createBatch(@CurrentOrg() orgId: string, @Body() dto: CreateStockBatchDto) {
-    return this.stock.createBatch(orgId, dto);
+  createBatch(
+    @CurrentOrg() orgId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateStockBatchDto,
+  ) {
+    return this.stock.createBatch(orgId, user.sub, dto);
   }
 
   @Get('batches')

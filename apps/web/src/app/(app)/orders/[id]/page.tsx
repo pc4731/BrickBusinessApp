@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Truck, Package, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Truck, Package, CheckCircle2, XCircle, IndianRupee } from 'lucide-react';
 import { formatINR, paisePerBrickToRatePerThousand } from '@brick/utils';
-import { ordersApi } from '@/lib/resources';
+import { ordersApi, paymentsApi } from '@/lib/resources';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api';
 import type { Order, OrderStatus } from '@/lib/entities';
@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PaymentDialog } from '@/components/payment-dialog';
 
 const rate1000 = (paisePerBrick?: number | null) =>
   paisePerBrick != null ? formatINR(Math.round(paisePerBrickToRatePerThousand(paisePerBrick) * 100)) : '—';
@@ -28,8 +29,20 @@ export default function OrderDetailPage() {
   const role = useAuthStore((s) => s.user?.role);
   const canManage = role === 'OWNER' || role === 'MANAGER';
 
+  const canFinance = role === 'OWNER' || role === 'MANAGER' || role === 'ACCOUNTANT';
   const order = useQuery({ queryKey: ['order', id], queryFn: () => ordersApi.get(id) });
+  const payments = useQuery({
+    queryKey: ['customer-payments', 'order', id],
+    queryFn: () => paymentsApi.listCustomerPayments({ orderId: id }),
+  });
   const [deliverOpen, setDeliverOpen] = useState(false);
+  const [payCustomerOpen, setPayCustomerOpen] = useState(false);
+  const [payFactoryOpen, setPayFactoryOpen] = useState(false);
+
+  const refreshFinance = () => {
+    qc.invalidateQueries({ queryKey: ['customer-payments', 'order', id] });
+    qc.invalidateQueries({ queryKey: ['finance'] });
+  };
 
   const transition = useMutation({
     mutationFn: (body: Record<string, unknown>) => ordersApi.transition(id, body),
@@ -170,6 +183,39 @@ export default function OrderDetailPage() {
         </Card>
       )}
 
+      {/* Payments */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-lg">Customer payments</CardTitle>
+          {canFinance && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setPayCustomerOpen(true)}>
+                <IndianRupee className="h-4 w-4" /> Receive payment
+              </Button>
+              {o.orderType === 'DIRECT' && o.factory && (
+                <Button size="sm" variant="outline" onClick={() => setPayFactoryOpen(true)}>
+                  <IndianRupee className="h-4 w-4" /> Pay factory
+                </Button>
+              )}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {payments.data?.length === 0 && (
+            <p className="text-muted-foreground">No payments recorded for this order.</p>
+          )}
+          {payments.data?.map((p) => (
+            <div key={p.id} className="flex items-center justify-between border-b py-1 last:border-0">
+              <span>
+                {new Date(p.paymentDate).toLocaleDateString('en-IN')} · {p.paymentMode}
+                {p.remarks ? ` · ${p.remarks}` : ''}
+              </span>
+              <span className="font-medium">{formatINR(p.amountPaise)}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <DeliverDialog
         open={deliverOpen}
         onOpenChange={setDeliverOpen}
@@ -177,6 +223,29 @@ export default function OrderDetailPage() {
         pending={transition.isPending}
         onSubmit={(body) => transition.mutate({ status: 'DELIVERED', ...body })}
       />
+
+      {o.customer && (
+        <PaymentDialog
+          kind="customer"
+          partyId={o.customerId}
+          partyName={o.customer.name}
+          orderId={o.id}
+          open={payCustomerOpen}
+          onOpenChange={setPayCustomerOpen}
+          onSaved={refreshFinance}
+        />
+      )}
+      {o.factory && (
+        <PaymentDialog
+          kind="factory"
+          partyId={o.factory.id}
+          partyName={o.factory.name}
+          orderId={o.id}
+          open={payFactoryOpen}
+          onOpenChange={setPayFactoryOpen}
+          onSaved={refreshFinance}
+        />
+      )}
     </div>
   );
 }

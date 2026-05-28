@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@brick/db';
 import { DEFAULT_ORG_SETTINGS, type OrgSettings, BrickClasses } from '@brick/types';
+import { lineTotalPaise } from '@brick/utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { PostingService } from '../finance/posting.service';
 import { paginate } from '../common/dto/pagination.dto';
 import { CreateStockBatchDto, StockQueryDto } from './dto/stock.dto';
 
@@ -10,29 +12,45 @@ const available = (b: { qtyPurchased: number; qtySold: number; qtyReserved: numb
 
 @Injectable()
 export class StockService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly posting: PostingService,
+  ) {}
 
-  async createBatch(orgId: string, dto: CreateStockBatchDto) {
+  async createBatch(orgId: string, userId: string, dto: CreateStockBatchDto) {
     const factory = await this.prisma.factory.findFirst({
       where: { id: dto.factoryId, orgId, deletedAt: null },
       select: { id: true },
     });
     if (!factory) throw new BadRequestException('Factory not found');
 
-    return this.prisma.stockBatch.create({
-      data: {
+    const purchaseDate = new Date(dto.purchaseDate);
+    return this.prisma.$transaction(async (tx) => {
+      const batch = await tx.stockBatch.create({
+        data: {
+          orgId,
+          factoryId: dto.factoryId,
+          brickClass: dto.brickClass,
+          qtyPurchased: dto.qtyPurchased,
+          purchasePricePerBrickPaise: dto.purchasePricePerBrickPaise,
+          purchaseDate,
+          truckType: dto.truckType,
+          ownTruckId: dto.ownTruckId,
+          hiredTruckId: dto.hiredTruckId,
+          transportCostPaise: dto.transportCostPaise ?? 0,
+          notes: dto.notes,
+        },
+      });
+      // Capitalise the brick cost to inventory; we now owe the factory.
+      await this.posting.postStockPurchase(tx, {
         orgId,
+        batchId: batch.id,
         factoryId: dto.factoryId,
-        brickClass: dto.brickClass,
-        qtyPurchased: dto.qtyPurchased,
-        purchasePricePerBrickPaise: dto.purchasePricePerBrickPaise,
-        purchaseDate: new Date(dto.purchaseDate),
-        truckType: dto.truckType,
-        ownTruckId: dto.ownTruckId,
-        hiredTruckId: dto.hiredTruckId,
-        transportCostPaise: dto.transportCostPaise ?? 0,
-        notes: dto.notes,
-      },
+        entryDate: purchaseDate,
+        amountPaise: lineTotalPaise(dto.qtyPurchased, dto.purchasePricePerBrickPaise),
+        createdById: userId,
+      });
+      return batch;
     });
   }
 

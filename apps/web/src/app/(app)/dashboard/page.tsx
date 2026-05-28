@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { Users2, Factory, Truck, IdCard, Settings, UserCog, ClipboardList, Boxes } from 'lucide-react';
+import { Users2, Factory, Truck, IdCard, Settings, UserCog, ClipboardList, Boxes, Wallet, Receipt } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const TILES = [
   { href: '/orders', label: 'Orders', icon: ClipboardList, desc: 'Create & track deliveries' },
   { href: '/stock', label: 'Stock', icon: Boxes, desc: 'Yard inventory & batches' },
+  { href: '/finance', label: 'Finance', icon: Wallet, desc: 'Profit, dues, cash position' },
+  { href: '/expenses', label: 'Expenses', icon: Receipt, desc: 'Truck & general expenses' },
   { href: '/customers', label: 'Customers', icon: Users2, desc: 'Manage buyers, rates, sites' },
   { href: '/factories', label: 'Factories', icon: Factory, desc: 'Bhattas & purchase rates' },
   { href: '/trucks', label: 'Own Trucks', icon: Truck, desc: 'Fleet & document expiry' },

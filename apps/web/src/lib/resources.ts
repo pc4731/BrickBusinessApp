@@ -5,18 +5,27 @@ import { api } from './api';
 import { resource, type ListParams } from './resource';
 import type {
   BrickPrice,
+  CashbookRow,
   Customer,
   CustomerAddress,
   CustomerDetail,
+  CustomerDueRow,
+  CustomerLedgerRow,
+  CustomerPaymentRow,
   Driver,
   Factory,
   FactoryDetail,
+  FactoryDueRow,
+  FactoryLedgerRow,
+  FinanceDashboard,
+  GeneralExpenseRow,
   HiredTruck,
   Order,
   OrgSettingsResponse,
   OwnTruck,
   StockBatch,
   StockSummaryRow,
+  TruckExpenseRow,
   UserRow,
 } from './entities';
 
@@ -109,6 +118,63 @@ export const usersApi = {
   update: (id: string, body: Record<string, unknown>) =>
     api<UserRow>(`/users/${id}`, { method: 'PATCH', body }),
   remove: (id: string) => api<void>(`/users/${id}`, { method: 'DELETE' }),
+};
+
+export interface DateRangeParams {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+function rangeQs(params?: DateRangeParams): string {
+  const sp = new URLSearchParams();
+  if (params?.dateFrom) sp.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) sp.set('dateTo', params.dateTo);
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export const financeApi = {
+  dashboard: (params?: DateRangeParams) =>
+    api<FinanceDashboard>(`/finance/dashboard${rangeQs(params)}`),
+  customerDues: () => api<CustomerDueRow[]>('/finance/dues/customers'),
+  factoryDues: () => api<FactoryDueRow[]>('/finance/dues/factories'),
+  customerLedger: (customerId: string) =>
+    api<{ rows: CustomerLedgerRow[]; closingPaise: number }>(`/finance/ledger/customer/${customerId}`),
+  factoryLedger: (factoryId: string) =>
+    api<{ rows: FactoryLedgerRow[]; closingPaise: number }>(`/finance/ledger/factory/${factoryId}`),
+  cashbook: (params?: DateRangeParams) =>
+    api<{ rows: CashbookRow[]; closingPaise: number }>(`/finance/cashbook${rangeQs(params)}`),
+};
+
+export const paymentsApi = {
+  createCustomerPayment: (body: Record<string, unknown>) =>
+    api<CustomerPaymentRow>('/customer-payments', { method: 'POST', body }),
+  listCustomerPayments: (params: { customerId?: string; orderId?: string }) => {
+    const sp = new URLSearchParams();
+    if (params.customerId) sp.set('customerId', params.customerId);
+    if (params.orderId) sp.set('orderId', params.orderId);
+    const qs = sp.toString();
+    return api<CustomerPaymentRow[]>(`/customer-payments${qs ? `?${qs}` : ''}`);
+  },
+  removeCustomerPayment: (id: string) =>
+    api<void>(`/customer-payments/${id}`, { method: 'DELETE' }),
+  createFactoryPayment: (body: Record<string, unknown>) =>
+    api('/factory-payments', { method: 'POST', body }),
+  listFactoryPayments: (params: { factoryId?: string; orderId?: string }) => {
+    const sp = new URLSearchParams();
+    if (params.factoryId) sp.set('factoryId', params.factoryId);
+    if (params.orderId) sp.set('orderId', params.orderId);
+    const qs = sp.toString();
+    return api(`/factory-payments${qs ? `?${qs}` : ''}`);
+  },
+  createTruckExpense: (body: Record<string, unknown>) =>
+    api('/truck-expenses', { method: 'POST', body }),
+  listTruckExpenses: () => api<TruckExpenseRow[]>('/truck-expenses'),
+  removeTruckExpense: (id: string) => api<void>(`/truck-expenses/${id}`, { method: 'DELETE' }),
+  createGeneralExpense: (body: Record<string, unknown>) =>
+    api('/general-expenses', { method: 'POST', body }),
+  listGeneralExpenses: () => api<GeneralExpenseRow[]>('/general-expenses'),
+  removeGeneralExpense: (id: string) => api<void>(`/general-expenses/${id}`, { method: 'DELETE' }),
 };
 
 export type { ListParams, PaginatedResult };

@@ -28,6 +28,18 @@ export type PaymentType = (typeof PaymentTypes)[number];
 export const Languages = ['EN', 'HI', 'HINGLISH'] as const;
 export type Language = (typeof Languages)[number];
 
+export const TruckExpenseTypes = [
+  'FUEL',
+  'MAINTENANCE',
+  'CHALLAN',
+  'SERVICE',
+  'INSURANCE',
+  'PERMIT',
+  'SALARY',
+  'OTHER',
+] as const;
+export type TruckExpenseType = (typeof TruckExpenseTypes)[number];
+
 // Allowed order status transitions (enforced server-side in Phase 2).
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   DRAFT: ['CONFIRMED', 'CANCELLED'],

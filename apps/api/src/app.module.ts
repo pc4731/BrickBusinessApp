@@ -10,6 +10,8 @@ import { FactoriesModule } from './factories/factories.module';
 import { TrucksModule } from './trucks/trucks.module';
 import { StockModule } from './stock/stock.module';
 import { OrdersModule } from './orders/orders.module';
+import { FinanceModule } from './finance/finance.module';
+import { PaymentsModule } from './payments/payments.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
@@ -39,6 +41,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     TrucksModule,
     StockModule,
     OrdersModule,
+    FinanceModule,
+    PaymentsModule,
     SettingsModule,
     UsersModule,
   ],

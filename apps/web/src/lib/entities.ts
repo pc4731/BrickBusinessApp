@@ -199,3 +199,101 @@ export interface Order {
   stockItems: OrderStockItem[];
   summary: OrderFinancialsView;
 }
+
+// ── Finance ──
+export interface FinanceDashboard {
+  pl: {
+    revenuePaise: number;
+    cogsPaise: number;
+    truckExpensePaise: number;
+    generalExpensePaise: number;
+    totalExpensesPaise: number;
+    grossProfitPaise: number;
+    netProfitPaise: number;
+    gstOutputPaise: number;
+  };
+  balances: {
+    cashPaise: number;
+    bankPaise: number;
+    inventoryPaise: number;
+    receivablePaise: number;
+    netReceivablePaise: number;
+    advanceFromCustomerPaise: number;
+    payablePaise: number;
+    netPayablePaise: number;
+    advanceToFactoryPaise: number;
+    hiredTruckPayablePaise: number;
+  };
+}
+
+export interface CustomerDueRow {
+  customerId: string;
+  name: string;
+  phone: string;
+  pendingPaise: number;
+}
+
+export interface FactoryDueRow {
+  factoryId: string;
+  name: string;
+  phone: string;
+  payablePaise: number;
+}
+
+export interface CustomerLedgerRow {
+  id: string;
+  date: string;
+  description: string;
+  debitPaise: number;
+  creditPaise: number;
+  balancePaise: number;
+}
+
+export interface FactoryLedgerRow {
+  id: string;
+  date: string;
+  description: string;
+  purchasePaise: number;
+  paymentPaise: number;
+  balancePaise: number;
+}
+
+export interface CashbookRow {
+  id: string;
+  date: string;
+  description: string;
+  account: 'CASH' | 'BANK';
+  inflowPaise: number;
+  outflowPaise: number;
+  balancePaise: number;
+}
+
+export interface CustomerPaymentRow {
+  id: string;
+  customerId: string;
+  orderId?: string | null;
+  order?: { orderNumber: string } | null;
+  amountPaise: number;
+  paymentMode: string;
+  paymentType: string;
+  paymentDate: string;
+  remarks?: string | null;
+}
+
+export interface TruckExpenseRow {
+  id: string;
+  ownTruckId: string;
+  ownTruck?: { number: string };
+  expenseType: string;
+  amountPaise: number;
+  expenseDate: string;
+  description?: string | null;
+}
+
+export interface GeneralExpenseRow {
+  id: string;
+  category: string;
+  amountPaise: number;
+  expenseDate: string;
+  description?: string | null;
+}

@@ -89,6 +89,7 @@ enum LedgerAccount {
   FACTORY_PAYABLE
   ADVANCE_TO_FACTORY
   HIRED_TRUCK_PAYABLE
+  INVENTORY // stock asset; relieved to COGS on sale (perpetual inventory)
   REVENUE
   COGS // cost of goods sold (brick purchase)
   TRUCK_EXPENSE

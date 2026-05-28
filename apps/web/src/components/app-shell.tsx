@@ -16,6 +16,8 @@ import {
   IdCard,
   ClipboardList,
   Boxes,
+  Wallet,
+  Receipt,
 } from 'lucide-react';
 import type { UserRole } from '@brick/types';
 import { useAuthStore } from '@/lib/auth-store';
@@ -35,6 +37,8 @@ const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/orders', label: 'Orders', icon: ClipboardList },
   { href: '/stock', label: 'Stock', icon: Boxes },
+  { href: '/finance', label: 'Finance', icon: Wallet },
+  { href: '/expenses', label: 'Expenses', icon: Receipt },
   { href: '/customers', label: 'Customers', icon: Users2 },
   { href: '/factories', label: 'Factories', icon: Factory },
   { href: '/trucks', label: 'Own Trucks', icon: Truck },

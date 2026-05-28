@@ -7,6 +7,7 @@ import {
   type OrgSettings,
 } from '@brick/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { PostingService } from '../finance/posting.service';
 import { paginate } from '../common/dto/pagination.dto';
 import { nextOrderNumber } from './order-number.util';
 import { computeOrderSummary } from './order-financials.util';
@@ -33,7 +34,10 @@ const ORDER_INCLUDE = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly posting: PostingService,
+  ) {}
 
   // ── Create ────────────────────────────────────────────────────────────
   async create(orgId: string, userId: string, dto: CreateOrderDto) {
@@ -244,6 +248,7 @@ export class OrdersService {
 
     const isStock = order.orderType === 'STOCK';
     const wasReserved = order.status === 'CONFIRMED' || order.status === 'IN_TRANSIT';
+    const { settings } = await this.getOrgContext(orgId);
 
     await this.prisma.$transaction(async (tx) => {
       const data: Prisma.OrderUpdateInput = {
@@ -260,14 +265,31 @@ export class OrdersService {
         const qtyDelivered = isStock ? order.qtyOrdered : (dto.qtyDelivered ?? order.qtyOrdered);
         if (qtyDelivered > order.qtyOrdered)
           throw new BadRequestException('Delivered quantity cannot exceed ordered quantity');
+        const deliveredAt = dto.actualDeliveryAt ? new Date(dto.actualDeliveryAt) : new Date();
         data.qtyDelivered = qtyDelivered;
         data.qtyDiscrepancy = dto.qtyDiscrepancy ?? 0;
-        data.actualDeliveryAt = dto.actualDeliveryAt ? new Date(dto.actualDeliveryAt) : new Date();
+        data.actualDeliveryAt = deliveredAt;
         if (isStock) {
           for (const item of order.stockItems) {
             await this.sellBatch(tx, item.stockBatchId, item.qtyTaken);
           }
         }
+        // Recognise revenue + COGS on delivery. interState is irrelevant to the
+        // posted totals (it only changes the CGST/SGST vs IGST split).
+        const summary = computeOrderSummary({ ...order, qtyDelivered }, settings, false);
+        await this.posting.postOrderDelivered(tx, {
+          orgId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          orderType: order.orderType,
+          truckType: order.truckType,
+          customerId: order.customerId,
+          factoryId: order.factoryId,
+          hiredTruckId: order.hiredTruckId,
+          entryDate: deliveredAt,
+          summary,
+          createdById: userId,
+        });
       } else if (dto.status === 'CANCELLED' && isStock && wasReserved) {
         for (const item of order.stockItems) {
           await this.releaseBatch(tx, item.stockBatchId, item.qtyTaken);
