@@ -115,3 +115,87 @@ export interface UserRow {
   lastLoginAt?: string | null;
   createdAt: string;
 }
+
+export interface StockBatch {
+  id: string;
+  factoryId: string;
+  factory?: { id: string; name: string };
+  brickClass: BrickClass;
+  qtyPurchased: number;
+  qtySold: number;
+  qtyReserved: number;
+  qtyAvailable: number;
+  purchasePricePerBrickPaise: number;
+  purchaseDate: string;
+  transportCostPaise: number;
+  notes?: string | null;
+}
+
+export interface StockSummaryRow {
+  brickClass: BrickClass;
+  purchased: number;
+  sold: number;
+  reserved: number;
+  available: number;
+  lowStock: boolean;
+  threshold: number;
+}
+
+export interface OrderFinancialsView {
+  totalPurchasePaise: number;
+  taxableValuePaise: number;
+  transportCostPaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  totalTaxPaise: number;
+  invoiceTotalPaise: number;
+  grossProfitPaise: number;
+  netProfitPaise: number;
+  marginPct: number;
+}
+
+export type OrderType = 'DIRECT' | 'STOCK';
+export type OrderStatus = 'DRAFT' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
+export type TruckType = 'OWN' | 'HIRED';
+
+export interface OrderStockItem {
+  id: string;
+  stockBatchId: string;
+  qtyTaken: number;
+  purchasePricePerBrickPaise: number;
+  stockBatch?: { id: string; brickClass: BrickClass; purchaseDate: string };
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  orderType: OrderType;
+  status: OrderStatus;
+  customerId: string;
+  customer?: { id: string; name: string; phone: string };
+  customerAddressId?: string | null;
+  customerAddress?: CustomerAddress | null;
+  factoryId?: string | null;
+  factory?: { id: string; name: string } | null;
+  brickClass: BrickClass;
+  qtyOrdered: number;
+  qtyDelivered?: number | null;
+  qtyDiscrepancy: number;
+  purchasePricePerBrickPaise?: number | null;
+  sellingPricePerBrickPaise: number;
+  truckType: TruckType;
+  ownTruck?: { id: string; number: string } | null;
+  hiredTruck?: { id: string; number: string; ownerName?: string | null } | null;
+  driver?: { id: string; name: string } | null;
+  truckChargesPaise: number;
+  isGst: boolean;
+  gstRate: number;
+  orderDate: string;
+  deliveryDate?: string | null;
+  actualDeliveryAt?: string | null;
+  deliveryLocation?: string | null;
+  notes?: string | null;
+  stockItems: OrderStockItem[];
+  summary: OrderFinancialsView;
+}

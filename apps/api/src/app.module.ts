@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { FactoriesModule } from './factories/factories.module';
 import { TrucksModule } from './trucks/trucks.module';
+import { StockModule } from './stock/stock.module';
+import { OrdersModule } from './orders/orders.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
@@ -35,6 +37,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     CustomersModule,
     FactoriesModule,
     TrucksModule,
+    StockModule,
+    OrdersModule,
     SettingsModule,
     UsersModule,
   ],
