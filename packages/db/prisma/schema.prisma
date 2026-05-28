@@ -1,0 +1,905 @@
+// ════════════════════════════════════════════════════════════════════════
+//  Brick ERP — Prisma schema
+//
+//  MONEY: stored as INTEGER paise (₹8,500.00 → 850000). Never floats.
+//         Single-transaction amounts stay well within INT range (₹21,474,836).
+//         Aggregate balances are computed via SUM() which Postgres promotes
+//         to bigint, so no overflow on totals.
+//  QUANTITY: stored as actual brick count (5,000 bricks). UI shows "5 ×1000".
+//  RATES: stored as paise PER BRICK (₹8,500/1000 → 850). total = qty × rate.
+//  MULTI-TENANCY: every business table carries orgId — branch-ready from day 1.
+//  SOFT DELETE: deletedAt on master/financial entities; never hard-delete money.
+//  ACCOUNTING: every financial event emits balanced JournalEntry rows.
+//              Ledgers, dues, and P&L are VIEWS over journal entries.
+// ════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  ENUMS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  MANAGER
+  ACCOUNTANT
+}
+
+enum BrickClass {
+  FIRST
+  SECOND
+  THIRD
+}
+
+enum OrderType {
+  DIRECT // Factory → Customer (primary)
+  STOCK // Factory → Yard → Customer (secondary)
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum TruckType {
+  OWN
+  HIRED
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+}
+
+enum PaymentType {
+  ADVANCE
+  PARTIAL
+  FULL
+}
+
+enum TruckExpenseType {
+  FUEL
+  MAINTENANCE
+  CHALLAN
+  SERVICE
+  INSURANCE
+  PERMIT
+  SALARY
+  OTHER
+}
+
+// Chart of accounts for double-entry bookkeeping.
+enum LedgerAccount {
+  CASH
+  BANK
+  CUSTOMER_RECEIVABLE
+  ADVANCE_FROM_CUSTOMER
+  FACTORY_PAYABLE
+  ADVANCE_TO_FACTORY
+  HIRED_TRUCK_PAYABLE
+  REVENUE
+  COGS // cost of goods sold (brick purchase)
+  TRUCK_EXPENSE
+  GENERAL_EXPENSE
+  GST_OUTPUT_PAYABLE
+  GST_INPUT_CREDIT
+  OWNERS_EQUITY
+}
+
+enum JournalRefType {
+  ORDER
+  CUSTOMER_PAYMENT
+  FACTORY_PAYMENT
+  TRUCK_PAYMENT
+  TRUCK_EXPENSE
+  GENERAL_EXPENSE
+  STOCK_PURCHASE
+  ADJUSTMENT
+  OPENING_BALANCE
+}
+
+enum SyncOperation {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  CONFLICT
+  FAILED
+}
+
+enum NotificationType {
+  CUSTOMER_PAYMENT_DUE
+  FACTORY_DUE_OVERDUE
+  PAYMENT_REMINDER
+  LOW_STOCK
+  GENERAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  WHATSAPP
+  SMS
+}
+
+enum Language {
+  EN
+  HI
+  HINGLISH
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  LOGIN
+  LOGOUT
+}
+
+enum DocumentType {
+  INVOICE
+  CHALLAN
+  RECEIPT
+  TRANSPORT_SLIP
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  TENANCY & AUTH
+// ─────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  legalName String?
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  phone     String?
+  email     String?
+  gstin     String?
+  pan       String?
+  logoUrl   String?
+  // Per-org behaviour toggles (gstEnabled, lowStockThreshold, brickLossPolicy,
+  // ownTruckCostModel, defaultLanguage, etc.). Typed via @brick/types.
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  users             User[]
+  customers         Customer[]
+  factories         Factory[]
+  ownTrucks         OwnTruck[]
+  hiredTrucks       HiredTruck[]
+  drivers           Driver[]
+  stockBatches      StockBatch[]
+  orders            Order[]
+  customerPayments  CustomerPayment[]
+  factoryPayments   FactoryPayment[]
+  truckPayments     TruckPayment[]
+  truckExpenses     TruckExpense[]
+  generalExpenses   GeneralExpense[]
+  journalEntries    JournalEntry[]
+  invoices          Invoice[]
+  documents         GeneratedDocument[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  settingEntries    Setting[]
+  factoryPrices     FactoryPrice[]
+  customerPrices    CustomerPrice[]
+
+  @@index([deletedAt])
+  @@map("organizations")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  orgId         String
+  name          String
+  email         String
+  phone         String?
+  passwordHash  String
+  role          UserRole  @default(MANAGER)
+  language      Language  @default(EN)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  org              Organization      @relation(fields: [orgId], references: [id])
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  createdOrders    Order[]           @relation("OrderCreatedBy")
+  updatedOrders    Order[]           @relation("OrderUpdatedBy")
+  receivedPayments CustomerPayment[] @relation("PaymentReceivedBy")
+  paidFactory      FactoryPayment[]  @relation("FactoryPaidBy")
+
+  @@unique([orgId, email])
+  @@index([orgId, role])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// Rotating refresh tokens (hashed). Enables logout + revocation + device list.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  deviceId   String?
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MASTER DATA — Customers
+// ─────────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id              String    @id @default(cuid())
+  orgId           String
+  name            String
+  phone           String
+  phoneAlt        String?
+  email           String?
+  gstin           String?
+  pan             String?
+  creditLimitPaise Int      @default(0)
+  isActive        Boolean   @default(true)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  org       Organization      @relation(fields: [orgId], references: [id])
+  addresses CustomerAddress[]
+  prices    CustomerPrice[]
+  orders    Order[]
+  payments  CustomerPayment[]
+
+  @@index([orgId, isActive])
+  @@index([orgId, name])
+  @@index([deletedAt])
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id          String   @id @default(cuid())
+  customerId  String
+  label       String   // e.g. "Site A", "Warehouse"
+  fullAddress String
+  city        String?
+  state       String?
+  pincode     String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  orders   Order[]
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// Append-only customer-specific negotiated pricing history.
+// Effective price for a date = latest row with effectiveFrom <= date.
+model CustomerPrice {
+  id                 String     @id @default(cuid())
+  orgId              String
+  customerId         String
+  brickClass         BrickClass
+  pricePerBrickPaise Int
+  effectiveFrom      DateTime
+  note               String?
+  createdById        String?
+  createdAt          DateTime   @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, brickClass, effectiveFrom])
+  @@map("customer_prices")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MASTER DATA — Factories / Bhatta
+// ─────────────────────────────────────────────────────────────────────────
+
+model Factory {
+  id               String    @id @default(cuid())
+  orgId            String
+  name             String
+  ownerName        String?
+  phone            String?
+  address          String?
+  city             String?
+  state            String?
+  pincode          String?
+  gstin            String?
+  creditLimitPaise Int       @default(0)
+  creditDays       Int       @default(0)
+  isActive         Boolean   @default(true)
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  org          Organization     @relation(fields: [orgId], references: [id])
+  prices       FactoryPrice[]
+  stockBatches StockBatch[]
+  orders       Order[]
+  payments     FactoryPayment[]
+
+  @@index([orgId, isActive])
+  @@index([orgId, name])
+  @@index([deletedAt])
+  @@map("factories")
+}
+
+// Append-only factory pricing history (factory + brick-class wise).
+model FactoryPrice {
+  id                 String     @id @default(cuid())
+  orgId              String
+  factoryId          String
+  brickClass         BrickClass
+  pricePerBrickPaise Int
+  effectiveFrom      DateTime
+  note               String?
+  createdById        String?
+  createdAt          DateTime   @default(now())
+
+  org     Organization @relation(fields: [orgId], references: [id])
+  factory Factory      @relation(fields: [factoryId], references: [id])
+
+  @@index([factoryId, brickClass, effectiveFrom])
+  @@map("factory_prices")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MASTER DATA — Transport
+// ─────────────────────────────────────────────────────────────────────────
+
+model OwnTruck {
+  id              String    @id @default(cuid())
+  orgId           String
+  number          String
+  model           String?
+  capacityBricks  Int?
+  insuranceExpiry DateTime?
+  permitExpiry    DateTime?
+  fitnessExpiry   DateTime?
+  isActive        Boolean   @default(true)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  org          Organization   @relation(fields: [orgId], references: [id])
+  orders       Order[]
+  expenses     TruckExpense[]
+  stockBatches StockBatch[]
+
+  @@unique([orgId, number])
+  @@index([orgId, isActive])
+  @@map("own_trucks")
+}
+
+model Driver {
+  id            String    @id @default(cuid())
+  orgId         String
+  name          String
+  phone         String?
+  licenseNumber String?
+  licenseExpiry DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  org    Organization @relation(fields: [orgId], references: [id])
+  orders Order[]
+
+  @@index([orgId, isActive])
+  @@map("drivers")
+}
+
+// Third-party trucks. Created per engagement (lightweight master).
+model HiredTruck {
+  id          String    @id @default(cuid())
+  orgId       String
+  number      String
+  ownerName   String?
+  ownerPhone  String?
+  driverName  String?
+  driverPhone String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  org          Organization   @relation(fields: [orgId], references: [id])
+  orders       Order[]
+  payments     TruckPayment[]
+  stockBatches StockBatch[]
+
+  @@index([orgId, isActive])
+  @@map("hired_trucks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  INVENTORY — Stock batches (secondary workflow)
+// ─────────────────────────────────────────────────────────────────────────
+
+model StockBatch {
+  id                       String     @id @default(cuid())
+  orgId                    String
+  factoryId                String
+  brickClass               BrickClass
+  qtyPurchased             Int        // brick count
+  qtySold                  Int        @default(0)
+  qtyReserved              Int        @default(0)
+  // qtyAvailable = qtyPurchased - qtySold - qtyReserved (computed in app layer)
+  purchasePricePerBrickPaise Int
+  purchaseDate             DateTime
+  truckType                TruckType?
+  ownTruckId               String?
+  hiredTruckId             String?
+  transportCostPaise       Int        @default(0)
+  notes                    String?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  deletedAt                DateTime?
+
+  org        Organization     @relation(fields: [orgId], references: [id])
+  factory    Factory          @relation(fields: [factoryId], references: [id])
+  ownTruck   OwnTruck?        @relation(fields: [ownTruckId], references: [id])
+  hiredTruck HiredTruck?      @relation(fields: [hiredTruckId], references: [id])
+  orderItems OrderStockItem[]
+
+  @@index([orgId, brickClass])
+  @@index([factoryId])
+  @@index([deletedAt])
+  @@map("stock_batches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  ORDERS (central entity, both workflows)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Order {
+  id           String      @id @default(cuid())
+  orgId        String
+  orderNumber  String      // human-readable e.g. ORD-2026-0001
+  orderType    OrderType
+  status       OrderStatus @default(DRAFT)
+
+  customerId        String
+  customerAddressId String?
+  // DIRECT orders carry a factory; STOCK orders source from batches instead.
+  factoryId         String?
+
+  brickClass   BrickClass
+  qtyOrdered   Int            // brick count
+  qtyDelivered Int?           // null until delivery; supports partial delivery
+  qtyDiscrepancy Int          @default(0) // loaded vs unloaded count gap
+
+  // DIRECT: purchase rate set here. STOCK: derived from batch items (nullable).
+  purchasePricePerBrickPaise Int?
+  sellingPricePerBrickPaise  Int
+
+  truckType        TruckType
+  ownTruckId       String?
+  hiredTruckId     String?
+  driverId         String?
+  truckChargesPaise Int       @default(0) // hired: separate; own: 0 (merged via cost model)
+
+  // GST snapshot (rates/amounts frozen at confirmation time)
+  isGst      Boolean @default(false)
+  gstRate    Int     @default(0) // basis points e.g. 1200 = 12%
+  cgstPaise  Int     @default(0)
+  sgstPaise  Int     @default(0)
+  igstPaise  Int     @default(0)
+
+  orderDate         DateTime
+  deliveryDate      DateTime?
+  actualDeliveryAt  DateTime?
+  deliveryLocation  String?
+  notes             String?
+
+  createdById String?
+  updatedById String?
+  version     Int       @default(1) // optimistic lock for offline sync
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  org             Organization      @relation(fields: [orgId], references: [id])
+  customer        Customer          @relation(fields: [customerId], references: [id])
+  customerAddress CustomerAddress?  @relation(fields: [customerAddressId], references: [id])
+  factory         Factory?          @relation(fields: [factoryId], references: [id])
+  ownTruck        OwnTruck?         @relation(fields: [ownTruckId], references: [id])
+  hiredTruck      HiredTruck?       @relation(fields: [hiredTruckId], references: [id])
+  driver          Driver?           @relation(fields: [driverId], references: [id])
+  createdBy       User?             @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  updatedBy       User?             @relation("OrderUpdatedBy", fields: [updatedById], references: [id])
+
+  stockItems       OrderStockItem[]
+  customerPayments CustomerPayment[]
+  factoryPayments  FactoryPayment[]
+  truckPayments    TruckPayment[]
+  invoices         Invoice[]
+  documents        GeneratedDocument[]
+
+  @@unique([orgId, orderNumber])
+  @@index([orgId, status])
+  @@index([orgId, orderDate])
+  @@index([customerId])
+  @@index([factoryId])
+  @@index([deletedAt])
+  @@map("orders")
+}
+
+// Links a STOCK order to one or more purchase batches (manual selection, no FIFO).
+model OrderStockItem {
+  id                         String @id @default(cuid())
+  orderId                    String
+  stockBatchId               String
+  qtyTaken                   Int
+  purchasePricePerBrickPaise Int    // snapshot from batch at sale time
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stockBatch StockBatch @relation(fields: [stockBatchId], references: [id])
+
+  @@index([orderId])
+  @@index([stockBatchId])
+  @@map("order_stock_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  FINANCE — Double-entry journal (source of truth for all ledgers)
+//  Each row is a balanced micro-transaction: debitAccount gains, creditAccount
+//  releases, both by the same amount. Multi-leg events (e.g. GST) emit several
+//  rows sharing refType/refId. Rows are IMMUTABLE — corrections via ADJUSTMENT.
+// ─────────────────────────────────────────────────────────────────────────
+
+model JournalEntry {
+  id            String         @id @default(cuid())
+  orgId         String
+  entryDate     DateTime
+  description   String
+  refType       JournalRefType
+  refId         String?        // id of order/payment/expense that caused this
+  debitAccount  LedgerAccount
+  creditAccount LedgerAccount
+  amountPaise   Int
+  // Optional sub-ledger keys so a single account can be sliced per party.
+  customerId    String?
+  factoryId     String?
+  hiredTruckId  String?
+  ownTruckId    String?
+  createdById   String?
+  createdAt     DateTime       @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, entryDate])
+  @@index([refType, refId])
+  @@index([orgId, debitAccount])
+  @@index([orgId, creditAccount])
+  @@index([customerId])
+  @@index([factoryId])
+  @@map("journal_entries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  FINANCE — Payments & Expenses
+// ─────────────────────────────────────────────────────────────────────────
+
+model CustomerPayment {
+  id              String      @id @default(cuid())
+  orgId           String
+  customerId      String
+  orderId         String?     // null = unallocated advance against customer
+  amountPaise     Int
+  paymentMode     PaymentMode
+  paymentType     PaymentType
+  receivedById    String?
+  paymentDate     DateTime
+  chequeNumber    String?
+  upiRef          String?
+  bankRef         String?
+  proofUrl        String?
+  remarks         String?
+  version         Int         @default(1)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  org        Organization @relation(fields: [orgId], references: [id])
+  customer   Customer     @relation(fields: [customerId], references: [id])
+  order      Order?       @relation(fields: [orderId], references: [id])
+  receivedBy User?        @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+
+  @@index([orgId, paymentDate])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([deletedAt])
+  @@map("customer_payments")
+}
+
+model FactoryPayment {
+  id           String      @id @default(cuid())
+  orgId        String
+  factoryId    String
+  orderId      String?     // null = unallocated advance to factory
+  amountPaise  Int
+  paymentMode  PaymentMode
+  paymentType  PaymentType
+  paidById     String?
+  paymentDate  DateTime
+  chequeNumber String?
+  upiRef       String?
+  bankRef      String?
+  proofUrl     String?
+  remarks      String?
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  org     Organization @relation(fields: [orgId], references: [id])
+  factory Factory      @relation(fields: [factoryId], references: [id])
+  order   Order?       @relation(fields: [orderId], references: [id])
+  paidBy  User?        @relation("FactoryPaidBy", fields: [paidById], references: [id])
+
+  @@index([orgId, paymentDate])
+  @@index([factoryId])
+  @@index([orderId])
+  @@index([deletedAt])
+  @@map("factory_payments")
+}
+
+model TruckPayment {
+  id           String      @id @default(cuid())
+  orgId        String
+  hiredTruckId String
+  orderId      String?
+  amountPaise  Int
+  paymentMode  PaymentMode
+  paymentDate  DateTime
+  remarks      String?
+  createdById  String?
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+
+  org        Organization @relation(fields: [orgId], references: [id])
+  hiredTruck HiredTruck   @relation(fields: [hiredTruckId], references: [id])
+  order      Order?       @relation(fields: [orderId], references: [id])
+
+  @@index([orgId, paymentDate])
+  @@index([hiredTruckId])
+  @@map("truck_payments")
+}
+
+model TruckExpense {
+  id          String           @id @default(cuid())
+  orgId       String
+  ownTruckId  String
+  expenseType TruckExpenseType
+  amountPaise Int
+  expenseDate DateTime
+  description String?
+  proofUrl    String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  deletedAt   DateTime?
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  ownTruck OwnTruck     @relation(fields: [ownTruckId], references: [id])
+
+  @@index([orgId, expenseDate])
+  @@index([ownTruckId])
+  @@map("truck_expenses")
+}
+
+model GeneralExpense {
+  id          String   @id @default(cuid())
+  orgId       String
+  category    String
+  amountPaise Int
+  expenseDate DateTime
+  description String?
+  proofUrl    String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@index([orgId, expenseDate])
+  @@map("general_expenses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  BILLING & DOCUMENTS
+// ─────────────────────────────────────────────────────────────────────────
+
+model Invoice {
+  id            String   @id @default(cuid())
+  orgId         String
+  orderId       String
+  invoiceNumber String
+  invoiceDate   DateTime
+  subtotalPaise Int
+  gstRate       Int      @default(0)
+  cgstPaise     Int      @default(0)
+  sgstPaise     Int      @default(0)
+  igstPaise     Int      @default(0)
+  totalPaise    Int
+  isGstInvoice  Boolean  @default(false)
+  pdfUrl        String?
+  createdAt     DateTime @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id])
+  order Order        @relation(fields: [orderId], references: [id])
+
+  @@unique([orgId, invoiceNumber])
+  @@index([orderId])
+  @@map("invoices")
+}
+
+// Tracks every generated PDF (invoice/challan/receipt/transport slip) +
+// async generation status from the BullMQ queue.
+model GeneratedDocument {
+  id         String       @id @default(cuid())
+  orgId      String
+  orderId    String?
+  type       DocumentType
+  number     String
+  url        String?
+  status     String       @default("PENDING") // PENDING | READY | FAILED
+  createdById String?
+  createdAt  DateTime     @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id])
+  order Order?       @relation(fields: [orderId], references: [id])
+
+  @@index([orgId, type])
+  @@index([orderId])
+  @@map("generated_documents")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  NOTIFICATIONS (channel-ready for WhatsApp/SMS)
+// ─────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String              @id @default(cuid())
+  orgId     String
+  userId    String?
+  type      NotificationType
+  channel   NotificationChannel @default(IN_APP)
+  title     String
+  body      String
+  refType   String?
+  refId     String?
+  isRead    Boolean             @default(false)
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id])
+  user User?        @relation(fields: [userId], references: [id])
+
+  @@index([orgId, isRead])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  OFFLINE SYNC (order entry + payment recording)
+// ─────────────────────────────────────────────────────────────────────────
+
+model SyncQueueEntry {
+  id             String        @id @default(cuid())
+  orgId          String
+  userId         String
+  deviceId       String
+  clientUuid     String        // client-generated id for idempotency
+  operation      SyncOperation
+  entityType     String        // "order" | "customer_payment" | ...
+  entityId       String?       // server id once applied
+  payload        Json
+  clientVersion  Int           @default(1)
+  clientTimestamp DateTime
+  status         SyncStatus    @default(PENDING)
+  serverResponse Json?
+  createdAt      DateTime      @default(now())
+  syncedAt       DateTime?
+
+  @@unique([clientUuid])
+  @@index([orgId, status])
+  @@index([userId, status])
+  @@map("sync_queue")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  AUDIT, SETTINGS, I18N
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  orgId      String
+  userId     String?
+  action     AuditAction
+  entityType String
+  entityId   String?
+  oldData    Json?
+  newData    Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id])
+  user User?        @relation(fields: [userId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  orgId     String
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, key])
+  @@map("settings")
+}
+
+// Translation strings. Org-scoped overrides (orgId set) layer over global
+// defaults (orgId null) so each business can localise terms.
+model Translation {
+  id        String   @id @default(cuid())
+  orgId     String?
+  lang      Language
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, lang, key])
+  @@index([lang])
+  @@map("translations")
+}
