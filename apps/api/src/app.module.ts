@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import configuration, { AppConfig } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -12,6 +13,8 @@ import { StockModule } from './stock/stock.module';
 import { OrdersModule } from './orders/orders.module';
 import { FinanceModule } from './finance/finance.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ReportsModule } from './reports/reports.module';
+import { ExportsModule } from './exports/exports.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
@@ -34,6 +37,16 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
         return [{ ttl: t.ttl * 1000, limit: t.limit }];
       },
     }),
+    BullModule.forRoot({
+      connection: (() => {
+        const url = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
+        return {
+          host: url.hostname,
+          port: Number(url.port || 6379),
+          password: url.password || undefined,
+        };
+      })(),
+    }),
     PrismaModule,
     AuthModule,
     CustomersModule,
@@ -43,6 +56,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     OrdersModule,
     FinanceModule,
     PaymentsModule,
+    ReportsModule,
+    ExportsModule,
     SettingsModule,
     UsersModule,
   ],

@@ -3,15 +3,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, IndianRupee } from 'lucide-react';
+import { BookOpen, IndianRupee, BarChart3 } from 'lucide-react';
 import { formatINR } from '@brick/utils';
-import { financeApi } from '@/lib/resources';
+import { financeApi, reportsApi } from '@/lib/resources';
 import type { CustomerDueRow, FactoryDueRow } from '@/lib/entities';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PaymentDialog } from '@/components/payment-dialog';
+import { TrendChart } from '@/components/trend-chart';
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
   return (
@@ -35,6 +36,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'goo
 export default function FinancePage() {
   const qc = useQueryClient();
   const dashboard = useQuery({ queryKey: ['finance', 'dashboard'], queryFn: () => financeApi.dashboard() });
+  const trends = useQuery({ queryKey: ['reports', 'trends'], queryFn: () => reportsApi.trends(6) });
   const customerDues = useQuery({ queryKey: ['finance', 'dues', 'customers'], queryFn: financeApi.customerDues });
   const factoryDues = useQuery({ queryKey: ['finance', 'dues', 'factories'], queryFn: financeApi.factoryDues });
 
@@ -52,11 +54,18 @@ export default function FinancePage() {
         title="Finance"
         subtitle="Profit, receivables, payables and cash position"
         action={
-          <Button asChild variant="outline">
-            <Link href="/finance/cashbook">
-              <BookOpen className="h-4 w-4" /> Cashbook
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <Link href="/reports">
+                <BarChart3 className="h-4 w-4" /> Reports
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/finance/cashbook">
+                <BookOpen className="h-4 w-4" /> Cashbook
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -77,6 +86,17 @@ export default function FinancePage() {
             <Kpi label="Payable (net)" value={formatINR(bal.netPayablePaise)} tone="bad" />
           </div>
         </>
+      )}
+
+      {trends.data && trends.data.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Last 6 months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TrendChart data={trends.data} />
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">

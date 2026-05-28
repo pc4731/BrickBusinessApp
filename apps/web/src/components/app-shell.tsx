@@ -18,6 +18,7 @@ import {
   Boxes,
   Wallet,
   Receipt,
+  BarChart3,
 } from 'lucide-react';
 import type { UserRole } from '@brick/types';
 import { useAuthStore } from '@/lib/auth-store';
@@ -38,6 +39,7 @@ const NAV: NavItem[] = [
   { href: '/orders', label: 'Orders', icon: ClipboardList },
   { href: '/stock', label: 'Stock', icon: Boxes },
   { href: '/finance', label: 'Finance', icon: Wallet },
+  { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/expenses', label: 'Expenses', icon: Receipt },
   { href: '/customers', label: 'Customers', icon: Users2 },
   { href: '/factories', label: 'Factories', icon: Factory },

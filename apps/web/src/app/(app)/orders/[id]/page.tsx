@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Truck, Package, CheckCircle2, XCircle, IndianRupee } from 'lucide-react';
+import { ArrowLeft, Truck, Package, CheckCircle2, XCircle, IndianRupee, FileText } from 'lucide-react';
 import { formatINR, paisePerBrickToRatePerThousand } from '@brick/utils';
 import { ordersApi, paymentsApi } from '@/lib/resources';
+import { exportsApi } from '@/lib/exports';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiError } from '@/lib/api';
 import type { Order, OrderStatus } from '@/lib/entities';
@@ -38,6 +39,20 @@ export default function OrderDetailPage() {
   const [deliverOpen, setDeliverOpen] = useState(false);
   const [payCustomerOpen, setPayCustomerOpen] = useState(false);
   const [payFactoryOpen, setPayFactoryOpen] = useState(false);
+  const [docBusy, setDocBusy] = useState<string | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
+
+  async function generateDoc(type: 'INVOICE' | 'CHALLAN' | 'RECEIPT') {
+    setDocBusy(type);
+    setDocError(null);
+    try {
+      await exportsApi.generateAndDownload(type, id);
+    } catch (e) {
+      setDocError(e instanceof Error ? e.message : 'Failed to generate document');
+    } finally {
+      setDocBusy(null);
+    }
+  }
 
   const refreshFinance = () => {
     qc.invalidateQueries({ queryKey: ['customer-payments', 'order', id] });
@@ -182,6 +197,31 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Documents */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-lg">Documents</CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => generateDoc('INVOICE')} disabled={docBusy !== null}>
+              <FileText className="h-4 w-4" /> {docBusy === 'INVOICE' ? 'Generating…' : 'Invoice'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => generateDoc('CHALLAN')} disabled={docBusy !== null}>
+              <FileText className="h-4 w-4" /> {docBusy === 'CHALLAN' ? 'Generating…' : 'Challan'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => generateDoc('RECEIPT')} disabled={docBusy !== null}>
+              <FileText className="h-4 w-4" /> {docBusy === 'RECEIPT' ? 'Generating…' : 'Receipt'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          {docError ? (
+            <span className="text-destructive">{docError}</span>
+          ) : (
+            'Generate a PDF invoice, delivery challan, or payment receipt for this order.'
+          )}
+        </CardContent>
+      </Card>
 
       {/* Payments */}
       <Card>

@@ -297,3 +297,86 @@ export interface GeneralExpenseRow {
   expenseDate: string;
   description?: string | null;
 }
+
+// ── Reports ──
+export interface PnlReport {
+  revenuePaise: number;
+  cogsPaise: number;
+  grossProfitPaise: number;
+  truckExpensePaise: number;
+  generalExpensePaise: number;
+  totalExpensesPaise: number;
+  netProfitPaise: number;
+  gstOutputPaise: number;
+}
+
+export interface TrendPoint {
+  month: string;
+  revenuePaise: number;
+  purchasePaise: number;
+  expensePaise: number;
+  netProfitPaise: number;
+}
+
+export interface DailySalesRow {
+  date: string;
+  orders: number;
+  salesPaise: number;
+  cogsPaise: number;
+  taxPaise: number;
+  grossProfitPaise: number;
+}
+
+export interface PurchaseRow {
+  date: string;
+  type: 'STOCK' | 'DIRECT';
+  factory: string;
+  qtyBricks: number;
+  amountPaise: number;
+}
+
+export interface PaymentReportRow {
+  date: string;
+  direction: 'IN' | 'OUT';
+  party: string;
+  mode: string;
+  amountPaise: number;
+}
+
+export interface ExpenseReportRow {
+  date: string;
+  category: string;
+  ref: string;
+  amountPaise: number;
+}
+
+export interface GstReportRow {
+  orderNumber: string;
+  date: string;
+  customer: string;
+  gstin: string;
+  taxablePaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  totalTaxPaise: number;
+}
+
+export interface StockReportRow {
+  date: string;
+  factory: string;
+  brickClass: BrickClass;
+  purchased: number;
+  sold: number;
+  reserved: number;
+  available: number;
+  ratePaise: number;
+}
+
+export interface GeneratedDoc {
+  id: string;
+  type: string;
+  number: string;
+  status: 'PENDING' | 'READY' | 'FAILED';
+  url?: string | null;
+}

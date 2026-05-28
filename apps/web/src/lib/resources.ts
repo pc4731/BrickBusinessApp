@@ -17,14 +17,22 @@ import type {
   FactoryDetail,
   FactoryDueRow,
   FactoryLedgerRow,
+  DailySalesRow,
+  ExpenseReportRow,
   FinanceDashboard,
   GeneralExpenseRow,
+  GstReportRow,
   HiredTruck,
   Order,
   OrgSettingsResponse,
   OwnTruck,
+  PaymentReportRow,
+  PnlReport,
+  PurchaseRow,
   StockBatch,
+  StockReportRow,
   StockSummaryRow,
+  TrendPoint,
   TruckExpenseRow,
   UserRow,
 } from './entities';
@@ -175,6 +183,25 @@ export const paymentsApi = {
     api('/general-expenses', { method: 'POST', body }),
   listGeneralExpenses: () => api<GeneralExpenseRow[]>('/general-expenses'),
   removeGeneralExpense: (id: string) => api<void>(`/general-expenses/${id}`, { method: 'DELETE' }),
+};
+
+export const reportsApi = {
+  pnl: (p?: DateRangeParams) => api<PnlReport>(`/reports/pnl${rangeQs(p)}`),
+  trends: (months = 6) => api<TrendPoint[]>(`/reports/trends?months=${months}`),
+  dailySales: (p?: DateRangeParams) => api<DailySalesRow[]>(`/reports/daily-sales${rangeQs(p)}`),
+  purchases: (p?: DateRangeParams) =>
+    api<{ rows: PurchaseRow[]; totalPaise: number }>(`/reports/purchases${rangeQs(p)}`),
+  payments: (p?: DateRangeParams) =>
+    api<{ rows: PaymentReportRow[]; receivedPaise: number; paidPaise: number; netPaise: number }>(
+      `/reports/payments${rangeQs(p)}`,
+    ),
+  expenses: (p?: DateRangeParams) =>
+    api<{ rows: ExpenseReportRow[]; totalPaise: number }>(`/reports/expenses${rangeQs(p)}`),
+  gst: (p?: DateRangeParams) =>
+    api<{ rows: GstReportRow[]; totals: Omit<GstReportRow, 'orderNumber' | 'date' | 'customer' | 'gstin'> }>(
+      `/reports/gst${rangeQs(p)}`,
+    ),
+  stock: () => api<StockReportRow[]>('/reports/stock'),
 };
 
 export type { ListParams, PaginatedResult };
