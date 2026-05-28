@@ -9,11 +9,13 @@ export class PaginationQueryDto {
   @Min(1)
   page = 1;
 
+  // Cap is generous so "load all" dropdown queries (limit≈200) succeed; large
+  // option lists should move to searchable server-backed selects later.
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(500)
   limit = 20;
 
   @IsOptional()
