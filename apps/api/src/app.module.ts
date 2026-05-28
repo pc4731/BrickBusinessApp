@@ -5,6 +5,11 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration, { AppConfig } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { CustomersModule } from './customers/customers.module';
+import { FactoriesModule } from './factories/factories.module';
+import { TrucksModule } from './trucks/trucks.module';
+import { SettingsModule } from './settings/settings.module';
+import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -27,6 +32,11 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     }),
     PrismaModule,
     AuthModule,
+    CustomersModule,
+    FactoriesModule,
+    TrucksModule,
+    SettingsModule,
+    UsersModule,
   ],
   controllers: [HealthController],
   providers: [
