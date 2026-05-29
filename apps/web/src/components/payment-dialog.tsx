@@ -6,6 +6,7 @@ import { toPaise } from '@brick/utils';
 import { PaymentModes, PaymentTypes } from '@brick/types';
 import { paymentsApi } from '@/lib/resources';
 import { ApiError } from '@/lib/api';
+import { enqueueOp, useOfflineStore } from '@/lib/offline';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -42,16 +43,22 @@ export function PaymentDialog({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState('');
 
+  const [offlineError, setOfflineError] = useState<string | null>(null);
+
+  function buildBody(): Record<string, unknown> {
+    return {
+      amountPaise: toPaise(Number(amount)),
+      paymentMode: mode,
+      paymentType: type,
+      paymentDate: new Date(date).toISOString(),
+      remarks: remarks || undefined,
+      ...(orderId ? { orderId } : {}),
+    };
+  }
+
   const mutation = useMutation({
     mutationFn: () => {
-      const body: Record<string, unknown> = {
-        amountPaise: toPaise(Number(amount)),
-        paymentMode: mode,
-        paymentType: type,
-        paymentDate: new Date(date).toISOString(),
-        remarks: remarks || undefined,
-        ...(orderId ? { orderId } : {}),
-      };
+      const body = buildBody();
       if (kind === 'customer') {
         return paymentsApi.createCustomerPayment({ ...body, customerId: partyId });
       }
@@ -65,7 +72,23 @@ export function PaymentDialog({
     },
   });
 
-  const error = mutation.error instanceof ApiError ? mutation.error.message : null;
+  async function handleSubmit() {
+    setOfflineError(null);
+    if (!useOfflineStore.getState().online) {
+      if (kind === 'factory') {
+        setOfflineError('Factory payments need an internet connection.');
+        return;
+      }
+      await enqueueOp('customer_payment', { ...buildBody(), customerId: partyId });
+      setAmount('');
+      setRemarks('');
+      onOpenChange(false);
+      return;
+    }
+    mutation.mutate();
+  }
+
+  const error = offlineError ?? (mutation.error instanceof ApiError ? mutation.error.message : null);
   const title =
     kind === 'customer'
       ? `Receive payment — ${partyName}`
@@ -81,7 +104,7 @@ export function PaymentDialog({
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            mutation.mutate();
+            void handleSubmit();
           }}
         >
           {!orderId && (

@@ -5,6 +5,9 @@ import { Providers } from '@/components/providers';
 export const metadata: Metadata = {
   title: 'Brick ERP',
   description: 'Brick redistribution management — orders, finance, stock, logistics.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'Brick ERP', statusBarStyle: 'default' },
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
 };
 
 export const viewport: Viewport = {

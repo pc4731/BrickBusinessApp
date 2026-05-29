@@ -1,9 +1,26 @@
+import withPWAInit from '@ducanh2912/next-pwa';
+
+const withPWA = withPWAInit({
+  dest: 'public',
+  // SW is generated for production builds only; dev stays unencumbered.
+  disable: process.env.NODE_ENV === 'development',
+  register: true,
+  cacheOnFrontEndNav: true,
+  workboxOptions: {
+    // Never cache API calls — offline writes go through the IndexedDB queue.
+    runtimeCaching: [
+      {
+        urlPattern: /^https?.*\/api\/.*/i,
+        handler: 'NetworkOnly',
+      },
+    ],
+  },
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // ESLint is wired up in a later phase; keep production builds unblocked for now.
   eslint: { ignoreDuringBuilds: true },
-  // Workspace packages ship compiled dist, so no transpilePackages needed.
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);

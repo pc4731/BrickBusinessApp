@@ -17,6 +17,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ExportsModule } from './exports/exports.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuditModule } from './audit/audit.module';
+import { SyncModule } from './sync/sync.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
@@ -62,6 +63,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     ExportsModule,
     NotificationsModule,
     AuditModule,
+    SyncModule,
     SettingsModule,
     UsersModule,
   ],

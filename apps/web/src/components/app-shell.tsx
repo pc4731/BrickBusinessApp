@@ -20,9 +20,11 @@ import {
   Receipt,
   BarChart3,
   ScrollText,
+  WifiOff,
 } from 'lucide-react';
 import type { UserRole } from '@brick/types';
 import { useAuthStore } from '@/lib/auth-store';
+import { useOfflineStore } from '@/lib/offline';
 import { authApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -148,8 +150,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </header>
+        <OfflineBanner />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function OfflineBanner() {
+  const online = useOfflineStore((s) => s.online);
+  const pending = useOfflineStore((s) => s.pending);
+  if (online && pending === 0) return null;
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 px-4 py-1.5 text-sm',
+        online ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'bg-destructive/15 text-destructive',
+      )}
+    >
+      {online ? (
+        <>
+          <WifiOff className="h-4 w-4" /> {pending} change{pending === 1 ? '' : 's'} pending sync…
+        </>
+      ) : (
+        <>
+          <WifiOff className="h-4 w-4" /> Offline — orders & payments will be saved and synced when you reconnect.
+          {pending > 0 && ` (${pending} pending)`}
+        </>
+      )}
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from '@/lib/resources';
 import type { BrickPrice, OrderType, TruckType } from '@/lib/entities';
 import { ApiError } from '@/lib/api';
+import { enqueueOp, useOfflineStore } from '@/lib/offline';
 import { BRICK_LABELS, thousands } from '@/lib/labels';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,40 +133,52 @@ export default function NewOrderPage() {
     });
   }, [settings, qtyBricks, sellingRate, orderType, purchaseRate, truckType, hiredCharges, stockCogsPaise, isGst, gstPercent]);
 
+  function buildPayload(): Record<string, unknown> {
+    const base: Record<string, unknown> = {
+      orderType,
+      customerId,
+      customerAddressId: customerAddressId || undefined,
+      brickClass,
+      sellingPricePerBrickPaise: ratePerThousandToPaisePerBrick(Number(sellingRate)),
+      truckType,
+      ownTruckId: truckType === 'OWN' ? ownTruckId || undefined : undefined,
+      hiredTruckId: truckType === 'HIRED' ? hiredTruckId || undefined : undefined,
+      driverId: driverId || undefined,
+      truckChargesPaise: truckType === 'HIRED' && hiredCharges ? toPaise(Number(hiredCharges)) : undefined,
+      isGst,
+      gstRate: isGst ? Math.round(Number(gstPercent) * 100) : undefined,
+      orderDate: new Date(orderDate).toISOString(),
+      deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString() : undefined,
+      deliveryLocation: deliveryLocation || undefined,
+      notes: notes || undefined,
+      status: confirmNow ? 'CONFIRMED' : 'DRAFT',
+    };
+    if (orderType === 'DIRECT') {
+      base.factoryId = factoryId;
+      base.qtyOrdered = qtyBricks;
+      base.purchasePricePerBrickPaise = ratePerThousandToPaisePerBrick(Number(purchaseRate));
+    } else {
+      base.stockItems = Object.entries(stockPicks)
+        .map(([stockBatchId, v]) => ({ stockBatchId, qtyTaken: Math.round((Number(v) || 0) * 1000) }))
+        .filter((i) => i.qtyTaken > 0);
+    }
+    return base;
+  }
+
   const create = useMutation({
-    mutationFn: () => {
-      const base: Record<string, unknown> = {
-        orderType,
-        customerId,
-        customerAddressId: customerAddressId || undefined,
-        brickClass,
-        sellingPricePerBrickPaise: ratePerThousandToPaisePerBrick(Number(sellingRate)),
-        truckType,
-        ownTruckId: truckType === 'OWN' ? ownTruckId || undefined : undefined,
-        hiredTruckId: truckType === 'HIRED' ? hiredTruckId || undefined : undefined,
-        driverId: driverId || undefined,
-        truckChargesPaise: truckType === 'HIRED' && hiredCharges ? toPaise(Number(hiredCharges)) : undefined,
-        isGst,
-        gstRate: isGst ? Math.round(Number(gstPercent) * 100) : undefined,
-        orderDate: new Date(orderDate).toISOString(),
-        deliveryDate: deliveryDate ? new Date(deliveryDate).toISOString() : undefined,
-        deliveryLocation: deliveryLocation || undefined,
-        notes: notes || undefined,
-        status: confirmNow ? 'CONFIRMED' : 'DRAFT',
-      };
-      if (orderType === 'DIRECT') {
-        base.factoryId = factoryId;
-        base.qtyOrdered = qtyBricks;
-        base.purchasePricePerBrickPaise = ratePerThousandToPaisePerBrick(Number(purchaseRate));
-      } else {
-        base.stockItems = Object.entries(stockPicks)
-          .map(([stockBatchId, v]) => ({ stockBatchId, qtyTaken: Math.round((Number(v) || 0) * 1000) }))
-          .filter((i) => i.qtyTaken > 0);
-      }
-      return ordersApi.create(base);
-    },
+    mutationFn: () => ordersApi.create(buildPayload()),
     onSuccess: (order) => router.replace(`/orders/${order.id}`),
   });
+
+  // Offline: queue the order locally; it syncs automatically on reconnect.
+  async function handleSubmit() {
+    if (!useOfflineStore.getState().online) {
+      await enqueueOp('order', buildPayload());
+      router.replace('/orders');
+      return;
+    }
+    create.mutate();
+  }
 
   const error = create.error instanceof ApiError ? create.error.message : null;
 
@@ -189,7 +202,7 @@ export default function NewOrderPage() {
         className="space-y-6"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          void handleSubmit();
         }}
       >
         {/* Workflow */}
