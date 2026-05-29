@@ -420,3 +420,26 @@ export interface CustomerStatement {
     netPendingPaise: number;
   };
 }
+
+export interface Notification {
+  id: string;
+  type: string;
+  channel: string;
+  title: string;
+  body: string;
+  refType?: string | null;
+  refId?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface AuditLogRow {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+  user?: { name: string; email: string } | null;
+}

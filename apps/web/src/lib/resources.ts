@@ -4,6 +4,7 @@ import type { PaginatedResult } from '@brick/types';
 import { api } from './api';
 import { resource, type ListParams } from './resource';
 import type {
+  AuditLogRow,
   BrickPrice,
   CashbookRow,
   Customer,
@@ -14,6 +15,7 @@ import type {
   CustomerPaymentRow,
   CustomerStatement,
   Driver,
+  Notification,
   Factory,
   FactoryDetail,
   FactoryDueRow,
@@ -205,6 +207,33 @@ export const reportsApi = {
   stock: () => api<StockReportRow[]>('/reports/stock'),
   customerStatement: (customerId: string, p?: DateRangeParams) =>
     api<CustomerStatement>(`/reports/customer/${customerId}${rangeQs(p)}`),
+};
+
+export const notificationsApi = {
+  list: () => api<Notification[]>('/notifications'),
+  unreadCount: () => api<{ count: number }>('/notifications/unread-count'),
+  refresh: () =>
+    api<{ created: number; removed: number; total: number }>('/notifications/refresh', { method: 'POST' }),
+  markRead: (id: string) => api<void>(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllRead: () => api<void>('/notifications/read-all', { method: 'PATCH' }),
+};
+
+export interface AuditQueryParams {
+  page?: number;
+  limit?: number;
+  entityType?: string;
+  action?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export const auditApi = {
+  list: (params: AuditQueryParams = {}) => {
+    const sp = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => v != null && v !== '' && sp.set(k, String(v)));
+    const qs = sp.toString();
+    return api<PaginatedResult<AuditLogRow>>(`/audit-logs${qs ? `?${qs}` : ''}`);
+  },
 };
 
 export type { ListParams, PaginatedResult };

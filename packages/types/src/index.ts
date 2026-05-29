@@ -10,6 +10,12 @@ export type UserRole = (typeof UserRoles)[number];
 export const BrickClasses = ['FIRST', 'SECOND', 'THIRD'] as const;
 export type BrickClass = (typeof BrickClasses)[number];
 
+export const BRICK_CLASS_LABEL: Record<BrickClass, string> = {
+  FIRST: '1st Class',
+  SECOND: '2nd Class',
+  THIRD: '3rd Class',
+};
+
 export const OrderTypes = ['DIRECT', 'STOCK'] as const;
 export type OrderType = (typeof OrderTypes)[number];
 

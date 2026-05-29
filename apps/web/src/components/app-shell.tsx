@@ -19,6 +19,7 @@ import {
   Wallet,
   Receipt,
   BarChart3,
+  ScrollText,
 } from 'lucide-react';
 import type { UserRole } from '@brick/types';
 import { useAuthStore } from '@/lib/auth-store';
@@ -26,6 +27,7 @@ import { authApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { NotificationBell } from '@/components/notification-bell';
 
 interface NavItem {
   href: string;
@@ -47,6 +49,7 @@ const NAV: NavItem[] = [
   { href: '/hired-trucks', label: 'Hired Trucks', icon: TruckIcon },
   { href: '/drivers', label: 'Drivers', icon: IdCard },
   { href: '/users', label: 'Users', icon: UserCog, roles: ['OWNER'] },
+  { href: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['OWNER'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['OWNER'] },
 ];
 
@@ -138,6 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-semibold lg:hidden">Brick ERP</span>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <Button variant="outline" size="sm" onClick={handleLogout}>
               Logout

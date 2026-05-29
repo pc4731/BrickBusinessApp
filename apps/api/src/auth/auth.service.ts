@@ -41,6 +41,7 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+    await this.audit(user.orgId, user.id, 'LOGIN', device);
 
     return {
       ...tokens,
@@ -63,8 +64,9 @@ export class AuthService {
     return rotated;
   }
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, actor?: { orgId: string; userId: string; device: DeviceMeta }): Promise<void> {
     await this.tokens.revoke(refreshToken);
+    if (actor) await this.audit(actor.orgId, actor.userId, 'LOGOUT', actor.device);
   }
 
   async me(userId: string): Promise<AuthUser> {
@@ -77,5 +79,14 @@ export class AuthService {
       role: user.role,
       language: user.language,
     };
+  }
+
+  // Login/logout events feed the audit-log viewer (login activity). Best-effort.
+  private async audit(orgId: string, userId: string, action: 'LOGIN' | 'LOGOUT', device: DeviceMeta) {
+    await this.prisma.auditLog
+      .create({
+        data: { orgId, userId, action, entityType: 'auth', ip: device.ip, userAgent: device.userAgent },
+      })
+      .catch(() => undefined);
   }
 }

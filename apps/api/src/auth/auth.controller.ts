@@ -37,8 +37,12 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(204)
-  async logout(@Body() dto: RefreshDto) {
-    await this.auth.logout(dto.refreshToken);
+  async logout(@Body() dto: RefreshDto, @Req() req: Request, @CurrentUser() user: JwtPayload) {
+    await this.auth.logout(dto.refreshToken, {
+      orgId: user.orgId,
+      userId: user.sub,
+      device: deviceMeta(req),
+    });
   }
 
   @Get('me')

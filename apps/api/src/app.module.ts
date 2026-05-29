@@ -15,6 +15,8 @@ import { FinanceModule } from './finance/finance.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExportsModule } from './exports/exports.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AuditModule } from './audit/audit.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 import { HealthController } from './health/health.controller';
@@ -58,6 +60,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     PaymentsModule,
     ReportsModule,
     ExportsModule,
+    NotificationsModule,
+    AuditModule,
     SettingsModule,
     UsersModule,
   ],

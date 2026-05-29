@@ -87,6 +87,32 @@ export class DocumentsProcessor extends WorkerHost {
         where: { id: documentId },
         data: { status: 'READY', url },
       });
+
+      // Freeze a GST invoice record on first invoice generation (immutable
+      // numbering + tax split); later regenerations just refresh the PDF link.
+      if (type === 'INVOICE') {
+        const existing = await this.prisma.invoice.findFirst({ where: { orgId, orderId } });
+        if (!existing) {
+          await this.prisma.invoice.create({
+            data: {
+              orgId,
+              orderId,
+              invoiceNumber: doc.number,
+              invoiceDate: new Date(),
+              subtotalPaise: summary.taxableValuePaise,
+              gstRate: order.gstRate,
+              cgstPaise: summary.cgstPaise,
+              sgstPaise: summary.sgstPaise,
+              igstPaise: summary.igstPaise,
+              totalPaise: summary.invoiceTotalPaise,
+              isGstInvoice: order.isGst,
+              pdfUrl: url,
+            },
+          });
+        } else {
+          await this.prisma.invoice.update({ where: { id: existing.id }, data: { pdfUrl: url } });
+        }
+      }
     } catch (err) {
       this.logger.error(`Document ${documentId} failed`, err as Error);
       await this.prisma.generatedDocument.update({
