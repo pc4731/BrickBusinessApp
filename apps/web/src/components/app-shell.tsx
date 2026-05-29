@@ -30,34 +30,37 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NotificationBell } from '@/components/notification-bell';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { useT } from '@/lib/i18n';
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: UserRole[]; // undefined = all roles
 }
 
 const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/orders', label: 'Orders', icon: ClipboardList },
-  { href: '/stock', label: 'Stock', icon: Boxes },
-  { href: '/finance', label: 'Finance', icon: Wallet },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/expenses', label: 'Expenses', icon: Receipt },
-  { href: '/customers', label: 'Customers', icon: Users2 },
-  { href: '/factories', label: 'Factories', icon: Factory },
-  { href: '/trucks', label: 'Own Trucks', icon: Truck },
-  { href: '/hired-trucks', label: 'Hired Trucks', icon: TruckIcon },
-  { href: '/drivers', label: 'Drivers', icon: IdCard },
-  { href: '/users', label: 'Users', icon: UserCog, roles: ['OWNER'] },
-  { href: '/audit', label: 'Audit Log', icon: ScrollText, roles: ['OWNER'] },
-  { href: '/settings', label: 'Settings', icon: Settings, roles: ['OWNER'] },
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/orders', labelKey: 'nav.orders', icon: ClipboardList },
+  { href: '/stock', labelKey: 'nav.stock', icon: Boxes },
+  { href: '/finance', labelKey: 'nav.finance', icon: Wallet },
+  { href: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
+  { href: '/expenses', labelKey: 'nav.expenses', icon: Receipt },
+  { href: '/customers', labelKey: 'nav.customers', icon: Users2 },
+  { href: '/factories', labelKey: 'nav.factories', icon: Factory },
+  { href: '/trucks', labelKey: 'nav.trucks', icon: Truck },
+  { href: '/hired-trucks', labelKey: 'nav.hiredTrucks', icon: TruckIcon },
+  { href: '/drivers', labelKey: 'nav.drivers', icon: IdCard },
+  { href: '/users', labelKey: 'nav.users', icon: UserCog, roles: ['OWNER'] },
+  { href: '/audit', labelKey: 'nav.audit', icon: ScrollText, roles: ['OWNER'] },
+  { href: '/settings', labelKey: 'nav.settings', icon: Settings, roles: ['OWNER'] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
   const { user, accessToken, refreshToken, clear } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -94,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           >
             <Icon className="h-5 w-5 shrink-0" />
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}
@@ -143,10 +146,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-semibold lg:hidden">Brick ERP</span>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             <NotificationBell />
             <ThemeToggle />
             <Button variant="outline" size="sm" onClick={handleLogout}>
-              Logout
+              {t('common.logout')}
             </Button>
           </div>
         </header>

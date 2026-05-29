@@ -3,42 +3,47 @@
 import Link from 'next/link';
 import { Users2, Factory, Truck, IdCard, Settings, UserCog, ClipboardList, Boxes, Wallet, Receipt } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
+import { useT } from '@/lib/i18n';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const TILES = [
-  { href: '/orders', label: 'Orders', icon: ClipboardList, desc: 'Create & track deliveries' },
-  { href: '/stock', label: 'Stock', icon: Boxes, desc: 'Yard inventory & batches' },
-  { href: '/finance', label: 'Finance', icon: Wallet, desc: 'Profit, dues, cash position' },
-  { href: '/expenses', label: 'Expenses', icon: Receipt, desc: 'Truck & general expenses' },
-  { href: '/customers', label: 'Customers', icon: Users2, desc: 'Manage buyers, rates, sites' },
-  { href: '/factories', label: 'Factories', icon: Factory, desc: 'Bhattas & purchase rates' },
-  { href: '/trucks', label: 'Own Trucks', icon: Truck, desc: 'Fleet & document expiry' },
-  { href: '/drivers', label: 'Drivers', icon: IdCard, desc: 'Driver directory' },
-  { href: '/users', label: 'Users', icon: UserCog, desc: 'Staff & roles', owner: true },
-  { href: '/settings', label: 'Settings', icon: Settings, desc: 'Business & GST config', owner: true },
+  { href: '/orders', labelKey: 'nav.orders', icon: ClipboardList, descKey: 'tile.orders' },
+  { href: '/stock', labelKey: 'nav.stock', icon: Boxes, descKey: 'tile.stock' },
+  { href: '/finance', labelKey: 'nav.finance', icon: Wallet, descKey: 'tile.finance' },
+  { href: '/expenses', labelKey: 'nav.expenses', icon: Receipt, descKey: 'tile.expenses' },
+  { href: '/customers', labelKey: 'nav.customers', icon: Users2, descKey: 'tile.customers' },
+  { href: '/factories', labelKey: 'nav.factories', icon: Factory, descKey: 'tile.factories' },
+  { href: '/trucks', labelKey: 'nav.trucks', icon: Truck, descKey: 'tile.trucks' },
+  { href: '/drivers', labelKey: 'nav.drivers', icon: IdCard, descKey: 'tile.drivers' },
+  { href: '/users', labelKey: 'nav.users', icon: UserCog, descKey: 'tile.users', owner: true },
+  { href: '/settings', labelKey: 'nav.settings', icon: Settings, descKey: 'tile.settings', owner: true },
 ];
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const tiles = TILES.filter((t) => !t.owner || user?.role === 'OWNER');
+  const t = useT();
+  const tiles = TILES.filter((tile) => !tile.owner || user?.role === 'OWNER');
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Welcome{user ? `, ${user.name}` : ''}</h1>
-        <p className="text-muted-foreground">Master data is ready. Orders & finance come next.</p>
+        <h1 className="text-2xl font-semibold">
+          {t('dashboard.welcome')}
+          {user ? `, ${user.name}` : ''}
+        </h1>
+        <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tiles.map((t) => {
-          const Icon = t.icon;
+        {tiles.map((tile) => {
+          const Icon = tile.icon;
           return (
-            <Link key={t.href} href={t.href}>
+            <Link key={tile.href} href={tile.href}>
               <Card className="h-full transition-colors hover:border-primary">
                 <CardHeader className="flex-row items-center gap-3 space-y-0">
                   <Icon className="h-6 w-6 text-primary" />
-                  <CardTitle className="text-lg">{t.label}</CardTitle>
+                  <CardTitle className="text-lg">{t(tile.labelKey)}</CardTitle>
                 </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">{t.desc}</CardContent>
+                <CardContent className="text-sm text-muted-foreground">{t(tile.descKey)}</CardContent>
               </Card>
             </Link>
           );
