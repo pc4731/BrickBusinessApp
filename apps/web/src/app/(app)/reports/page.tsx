@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { formatINR } from '@brick/utils';
-import { reportsApi, type DateRangeParams } from '@/lib/resources';
+import { reportsApi, customersApi, type DateRangeParams } from '@/lib/resources';
 import { exportsApi } from '@/lib/exports';
 import { BRICK_SHORT, thousands } from '@/lib/labels';
 import { PageHeader } from '@/components/ui/page-header';
@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { CustomerStatementView } from '@/components/customer-statement';
 
 const REPORTS = [
   { key: 'pnl', label: 'Profit & Loss' },
@@ -24,6 +25,7 @@ const REPORTS = [
   { key: 'expenses', label: 'Expense Report' },
   { key: 'gst', label: 'GST Report' },
   { key: 'stock', label: 'Stock Report' },
+  { key: 'customer-statement', label: 'Customer Statement' },
 ] as const;
 
 type ReportKey = (typeof REPORTS)[number]['key'];
@@ -32,8 +34,16 @@ export default function ReportsPage() {
   const [report, setReport] = useState<ReportKey>('pnl');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [customerId, setCustomerId] = useState('');
   const range: DateRangeParams = { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined };
-  const usesDate = report !== 'stock';
+  const isCustomerStatement = report === 'customer-statement';
+  const usesDate = report !== 'stock' && !isCustomerStatement;
+
+  const customers = useQuery({
+    queryKey: ['customers', 'all'],
+    queryFn: () => customersApi.list({ limit: 200 }),
+    enabled: isCustomerStatement,
+  });
 
   const [downloading, setDownloading] = useState(false);
   async function exportExcel() {
@@ -60,6 +70,18 @@ export default function ReportsPage() {
               ))}
             </Select>
           </Field>
+          {isCustomerStatement && (
+            <Field label="Customer">
+              <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                <option value="">Select customer…</option>
+                {customers.data?.data.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.phone}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           {usesDate && (
             <>
               <Field label="From">
@@ -70,9 +92,11 @@ export default function ReportsPage() {
               </Field>
             </>
           )}
-          <Button variant="outline" onClick={exportExcel} disabled={downloading}>
-            <Download className="h-4 w-4" /> {downloading ? 'Preparing…' : 'Export Excel'}
-          </Button>
+          {!isCustomerStatement && (
+            <Button variant="outline" onClick={exportExcel} disabled={downloading}>
+              <Download className="h-4 w-4" /> {downloading ? 'Preparing…' : 'Export Excel'}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -83,6 +107,12 @@ export default function ReportsPage() {
       {report === 'expenses' && <ExpensesView range={range} />}
       {report === 'gst' && <GstView range={range} />}
       {report === 'stock' && <StockView />}
+      {isCustomerStatement &&
+        (customerId ? (
+          <CustomerStatementView customerId={customerId} />
+        ) : (
+          <p className="text-sm text-muted-foreground">Select a customer to view their statement.</p>
+        ))}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { ReportsService } from '../reports/reports.service';
 interface DateRange {
   dateFrom?: string;
   dateTo?: string;
+  customerId?: string;
 }
 
 const rupees = (paise: number) => Math.round(paise) / 100;
@@ -40,6 +41,10 @@ export class ExcelService {
         break;
       case 'stock':
         await this.stock(wb, orgId);
+        break;
+      case 'customer-statement':
+        if (!range.customerId) throw new BadRequestException('customerId is required');
+        await this.customerStatement(wb, orgId, range.customerId, range);
         break;
       default:
         throw new BadRequestException(`Unknown report: ${report}`);
@@ -224,5 +229,48 @@ export class ExcelService {
       }),
     );
     this.moneyCol(ws, ['rate']);
+  }
+
+  private async customerStatement(
+    wb: ExcelJS.Workbook,
+    orgId: string,
+    customerId: string,
+    range: DateRange,
+  ) {
+    const s = await this.reports.customerStatement(orgId, customerId, range);
+
+    const ordersWs = wb.addWorksheet('Orders');
+    ordersWs.addRow([`Customer statement — ${s.customer.name}`]).font = { bold: true, size: 14 };
+    ordersWs.addRow([`Phone: ${s.customer.phone}${s.customer.gstin ? ` · GSTIN: ${s.customer.gstin}` : ''}`]);
+    ordersWs.addRow([
+      `Billed (delivered): ${rupees(s.totals.billedDeliveredPaise)}`,
+      `Paid: ${rupees(s.totals.totalPaidPaise)}`,
+      `Advance: ${rupees(s.totals.advancePaise)}`,
+      `Net pending: ${rupees(s.totals.netPendingPaise)}`,
+    ]);
+    ordersWs.addRow([]);
+
+    const headerRow = ordersWs.addRow([
+      'Order', 'Order date', 'Delivery', 'Status', 'Type', 'Class',
+      'Qty ordered', 'Qty delivered', 'Truck', 'Driver', 'Invoice', 'Paid', 'Balance',
+    ]);
+    headerRow.font = { bold: true };
+    s.orders.forEach((o) =>
+      ordersWs.addRow([
+        o.orderNumber, o.orderDate, o.deliveryDate ?? '', o.status, o.orderType, o.brickClass,
+        o.qtyOrdered, o.qtyDelivered ?? '', o.truckNumber ?? `${o.truckType}`, o.driverName ?? '',
+        rupees(o.invoicePaise), rupees(o.paidPaise), rupees(o.balancePaise),
+      ]),
+    );
+    [11, 12, 13].forEach((c) => (ordersWs.getColumn(c).numFmt = MONEY_FMT));
+    ordersWs.columns.forEach((c) => (c.width = Math.max(c.width ?? 10, 12)));
+
+    const payWs = wb.addWorksheet('Payments');
+    payWs.addRow(['Date', 'Order', 'Mode', 'Type', 'Amount', 'Remarks']).font = { bold: true };
+    s.payments.forEach((p) =>
+      payWs.addRow([p.date, p.orderNumber ?? 'Advance', p.mode, p.type, rupees(p.amountPaise), p.remarks ?? '']),
+    );
+    payWs.getColumn(5).numFmt = MONEY_FMT;
+    payWs.columns.forEach((c) => (c.width = Math.max(c.width ?? 10, 14)));
   }
 }

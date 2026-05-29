@@ -12,6 +12,7 @@ import type {
   CustomerDueRow,
   CustomerLedgerRow,
   CustomerPaymentRow,
+  CustomerStatement,
   Driver,
   Factory,
   FactoryDetail,
@@ -202,6 +203,8 @@ export const reportsApi = {
       `/reports/gst${rangeQs(p)}`,
     ),
   stock: () => api<StockReportRow[]>('/reports/stock'),
+  customerStatement: (customerId: string, p?: DateRangeParams) =>
+    api<CustomerStatement>(`/reports/customer/${customerId}${rangeQs(p)}`),
 };
 
 export type { ListParams, PaginatedResult };

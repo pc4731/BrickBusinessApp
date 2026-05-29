@@ -28,10 +28,11 @@ async function downloadBlob(path: string, filename: string) {
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const exportsApi = {
-  downloadReportExcel: (report: string, range?: DateRangeParams) => {
+  downloadReportExcel: (report: string, range?: DateRangeParams & { customerId?: string }) => {
     const sp = new URLSearchParams();
     if (range?.dateFrom) sp.set('dateFrom', range.dateFrom);
     if (range?.dateTo) sp.set('dateTo', range.dateTo);
+    if (range?.customerId) sp.set('customerId', range.customerId);
     const qs = sp.toString();
     return downloadBlob(`/exports/excel/${report}${qs ? `?${qs}` : ''}`, `${report}-report.xlsx`);
   },

@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CurrentOrg } from '../common/decorators/current-org.decorator';
 import { ReportsService } from './reports.service';
 
@@ -44,5 +44,15 @@ export class ReportsController {
   @Get('stock')
   stock(@CurrentOrg() orgId: string) {
     return this.reports.stockReport(orgId);
+  }
+
+  @Get('customer/:customerId')
+  customerStatement(
+    @CurrentOrg() orgId: string,
+    @Param('customerId') customerId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.reports.customerStatement(orgId, customerId, { dateFrom, dateTo });
   }
 }

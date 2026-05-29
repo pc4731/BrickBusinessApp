@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, LedgerAccount } from '@brick/db';
 import { DEFAULT_ORG_SETTINGS, type OrgSettings } from '@brick/types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -328,5 +328,129 @@ export class ReportsService {
       available: b.qtyPurchased - b.qtySold - b.qtyReserved,
       ratePaise: b.purchasePricePerBrickPaise,
     }));
+  }
+
+  /**
+   * Full per-customer statement: every order (with truck, invoice, amount paid
+   * against it, balance), every payment (allocated + advances), and totals with
+   * the journal-authoritative net pending.
+   */
+  async customerStatement(orgId: string, customerId: string, range: DateRange) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, orgId, deletedAt: null },
+      select: { id: true, name: true, phone: true, gstin: true, creditLimitPaise: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const { settings, state } = await this.orgSettings(orgId);
+
+    const orderDateFilter =
+      range.dateFrom || range.dateTo
+        ? { orderDate: { ...(range.dateFrom ? { gte: new Date(range.dateFrom) } : {}), ...(range.dateTo ? { lte: new Date(range.dateTo) } : {}) } }
+        : {};
+    const payDateFilter =
+      range.dateFrom || range.dateTo
+        ? { paymentDate: { ...(range.dateFrom ? { gte: new Date(range.dateFrom) } : {}), ...(range.dateTo ? { lte: new Date(range.dateTo) } : {}) } }
+        : {};
+
+    const [orders, payments] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where: { orgId, customerId, deletedAt: null, ...orderDateFilter },
+        orderBy: { orderDate: 'asc' },
+        include: {
+          customerAddress: { select: { state: true } },
+          ownTruck: { select: { number: true } },
+          hiredTruck: { select: { number: true } },
+          driver: { select: { name: true } },
+          stockItems: true,
+        },
+      }),
+      this.prisma.customerPayment.findMany({
+        where: { orgId, customerId, deletedAt: null, ...payDateFilter },
+        orderBy: { paymentDate: 'asc' },
+        include: { order: { select: { orderNumber: true } } },
+      }),
+    ]);
+
+    // Payments allocated to each order.
+    const allocatedByOrder = new Map<string, number>();
+    for (const p of payments) {
+      if (p.orderId) allocatedByOrder.set(p.orderId, (allocatedByOrder.get(p.orderId) ?? 0) + p.amountPaise);
+    }
+
+    let billedDeliveredPaise = 0;
+    const orderRows = orders.map((o) => {
+      const interState =
+        Boolean(state) &&
+        Boolean(o.customerAddress?.state) &&
+        state!.trim().toLowerCase() !== o.customerAddress!.state!.trim().toLowerCase();
+      const summary = computeOrderSummary(o, settings, interState);
+      const paidPaise = allocatedByOrder.get(o.id) ?? 0;
+      if (o.status === 'DELIVERED') billedDeliveredPaise += summary.invoiceTotalPaise;
+      return {
+        id: o.id,
+        orderNumber: o.orderNumber,
+        orderDate: ymd(o.orderDate),
+        deliveryDate: o.actualDeliveryAt ? ymd(o.actualDeliveryAt) : null,
+        status: o.status,
+        orderType: o.orderType,
+        brickClass: o.brickClass,
+        qtyOrdered: o.qtyOrdered,
+        qtyDelivered: o.qtyDelivered,
+        truckType: o.truckType,
+        truckNumber: o.ownTruck?.number ?? o.hiredTruck?.number ?? null,
+        driverName: o.driver?.name ?? null,
+        invoicePaise: summary.invoiceTotalPaise,
+        paidPaise,
+        balancePaise: summary.invoiceTotalPaise - paidPaise,
+      };
+    });
+
+    const paymentRows = payments.map((p) => ({
+      id: p.id,
+      date: ymd(p.paymentDate),
+      mode: p.paymentMode,
+      type: p.paymentType,
+      amountPaise: p.amountPaise,
+      orderNumber: p.order?.orderNumber ?? null,
+      remarks: p.remarks ?? null,
+    }));
+
+    const totalPaidPaise = payments.reduce((s, p) => s + p.amountPaise, 0);
+    const advancePaise = payments.filter((p) => !p.orderId).reduce((s, p) => s + p.amountPaise, 0);
+
+    // Journal-authoritative net pending (receivable − advance) for this customer.
+    const journal = await this.prisma.journalEntry.findMany({
+      where: {
+        orgId,
+        customerId,
+        OR: [
+          { debitAccount: LedgerAccount.CUSTOMER_RECEIVABLE },
+          { creditAccount: LedgerAccount.CUSTOMER_RECEIVABLE },
+          { debitAccount: LedgerAccount.ADVANCE_FROM_CUSTOMER },
+          { creditAccount: LedgerAccount.ADVANCE_FROM_CUSTOMER },
+        ],
+      },
+      select: { amountPaise: true, debitAccount: true, creditAccount: true },
+    });
+    let netPendingPaise = 0;
+    for (const e of journal) {
+      if (e.debitAccount === LedgerAccount.CUSTOMER_RECEIVABLE) netPendingPaise += e.amountPaise;
+      if (e.creditAccount === LedgerAccount.CUSTOMER_RECEIVABLE) netPendingPaise -= e.amountPaise;
+      if (e.creditAccount === LedgerAccount.ADVANCE_FROM_CUSTOMER) netPendingPaise -= e.amountPaise;
+      if (e.debitAccount === LedgerAccount.ADVANCE_FROM_CUSTOMER) netPendingPaise += e.amountPaise;
+    }
+
+    return {
+      customer,
+      orders: orderRows,
+      payments: paymentRows,
+      totals: {
+        billedDeliveredPaise,
+        totalPaidPaise,
+        advancePaise,
+        netPendingPaise,
+      },
+    };
   }
 }

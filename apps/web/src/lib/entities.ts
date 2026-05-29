@@ -380,3 +380,43 @@ export interface GeneratedDoc {
   status: 'PENDING' | 'READY' | 'FAILED';
   url?: string | null;
 }
+
+export interface StatementOrderRow {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  deliveryDate?: string | null;
+  status: OrderStatus;
+  orderType: OrderType;
+  brickClass: BrickClass;
+  qtyOrdered: number;
+  qtyDelivered?: number | null;
+  truckType: TruckType;
+  truckNumber?: string | null;
+  driverName?: string | null;
+  invoicePaise: number;
+  paidPaise: number;
+  balancePaise: number;
+}
+
+export interface StatementPaymentRow {
+  id: string;
+  date: string;
+  mode: string;
+  type: string;
+  amountPaise: number;
+  orderNumber?: string | null;
+  remarks?: string | null;
+}
+
+export interface CustomerStatement {
+  customer: { id: string; name: string; phone: string; gstin?: string | null; creditLimitPaise: number };
+  orders: StatementOrderRow[];
+  payments: StatementPaymentRow[];
+  totals: {
+    billedDeliveredPaise: number;
+    totalPaidPaise: number;
+    advancePaise: number;
+    netPendingPaise: number;
+  };
+}

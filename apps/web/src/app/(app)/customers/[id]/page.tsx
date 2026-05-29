@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText } from 'lucide-react';
 import {
   formatINR,
   ratePerThousandToPaisePerBrick,
@@ -98,13 +98,16 @@ export default function CustomerDetailPage() {
         <Button variant="ghost" size="icon" onClick={() => router.push('/customers')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold">{c.name}</h1>
           <p className="text-sm text-muted-foreground">
             {c.phone}
             {c.gstin ? ` · GSTIN ${c.gstin}` : ''} · Credit {formatINR(c.creditLimitPaise)}
           </p>
         </div>
+        <Button variant="outline" onClick={() => router.push(`/reports/customer/${id}`)}>
+          <FileText className="h-4 w-4" /> Statement
+        </Button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
