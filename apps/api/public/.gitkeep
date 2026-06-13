@@ -1,0 +1,4 @@
+# Intentionally empty.
+# Vercel requires a static output directory for a non-framework build. The API
+# itself is served by the serverless function at api/index.ts (every route is
+# rewritten there via vercel.json), so nothing is actually served from here.
