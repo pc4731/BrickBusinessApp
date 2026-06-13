@@ -13,6 +13,15 @@ export interface AppConfig {
     ttl: number;
     limit: number;
   };
+  storage: {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    publicUrl: string;
+  };
+  cronSecret: string;
 }
 
 export default (): AppConfig => ({
@@ -30,4 +39,14 @@ export default (): AppConfig => ({
     ttl: parseInt(process.env.THROTTLE_TTL ?? '60', 10),
     limit: parseInt(process.env.THROTTLE_LIMIT ?? '120', 10),
   },
+  storage: {
+    endpoint: process.env.S3_ENDPOINT ?? '',
+    region: process.env.S3_REGION ?? 'auto',
+    bucket: process.env.S3_BUCKET ?? 'brick-erp',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+    // Optional public/CDN base for objects; falls back to presigned URLs.
+    publicUrl: process.env.S3_PUBLIC_URL ?? '',
+  },
+  cronSecret: process.env.CRON_SECRET ?? '',
 });

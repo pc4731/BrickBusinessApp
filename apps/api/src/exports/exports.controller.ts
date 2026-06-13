@@ -80,10 +80,11 @@ export class ExportsController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const doc = await this.exports.getDocument(orgId, id);
-    if (doc.status !== 'READY' || !doc.url || !this.storage.exists(doc.url)) {
+    if (doc.status !== 'READY' || !doc.url) {
       throw new NotFoundException('Document not ready');
     }
     res.set('Content-Disposition', `attachment; filename="${doc.number}.pdf"`);
-    return new StreamableFile(this.storage.stream(doc.url));
+    // Proxy the object stream so the download stays same-origin (no R2 CORS).
+    return new StreamableFile(await this.storage.stream(doc.url));
   }
 }

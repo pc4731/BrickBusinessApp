@@ -1,35 +1,35 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import { Injectable, Logger } from '@nestjs/common';
 import { DEFAULT_ORG_SETTINGS, type OrgSettings } from '@brick/types';
 import type { DocumentType } from '@brick/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeOrderSummary } from '../orders/order-financials.util';
 import { PdfService } from './pdf.service';
 import { StorageService } from './storage.service';
-import { DOCUMENTS_QUEUE } from './exports.service';
 
-interface GenerateJob {
+interface GenerateInput {
   orgId: string;
   documentId: string;
   orderId: string;
   type: DocumentType;
 }
 
-@Processor(DOCUMENTS_QUEUE)
-export class DocumentsProcessor extends WorkerHost {
-  private readonly logger = new Logger(DocumentsProcessor.name);
+/**
+ * Builds a document PDF, stores it, and marks the GeneratedDocument READY.
+ * Runs synchronously inside the request (PDF generation is sub-second), which
+ * removes the need for a BullMQ worker — Vercel serverless has no background
+ * worker process to host one.
+ */
+@Injectable()
+export class DocumentGenerator {
+  private readonly logger = new Logger(DocumentGenerator.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly pdf: PdfService,
     private readonly storage: StorageService,
-  ) {
-    super();
-  }
+  ) {}
 
-  async process(job: Job<GenerateJob>) {
-    const { orgId, documentId, orderId, type } = job.data;
+  async generate({ orgId, documentId, orderId, type }: GenerateInput) {
     try {
       const [order, org, doc] = await Promise.all([
         this.prisma.order.findFirstOrThrow({

@@ -1,8 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import type { DocumentType } from '@brick/db';
 import { PrismaService } from '../prisma/prisma.service';
+import { DocumentGenerator } from './document-generator.service';
 
 const PREFIX: Record<DocumentType, string> = {
   INVOICE: 'INV',
@@ -11,16 +10,14 @@ const PREFIX: Record<DocumentType, string> = {
   TRANSPORT_SLIP: 'TRS',
 };
 
-export const DOCUMENTS_QUEUE = 'documents';
-
 @Injectable()
 export class ExportsService {
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue(DOCUMENTS_QUEUE) private readonly queue: Queue,
+    private readonly generator: DocumentGenerator,
   ) {}
 
-  /** Create a PENDING document record and enqueue its PDF generation. */
+  /** Create a document record and generate its PDF synchronously. */
   async requestDocument(orgId: string, userId: string, type: DocumentType, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, orgId, deletedAt: null },
@@ -38,12 +35,10 @@ export class ExportsService {
       data: { orgId, orderId, type, number, status: 'PENDING', createdById: userId },
     });
 
-    await this.queue.add(
-      'generate',
-      { orgId, documentId: doc.id, orderId, type },
-      { attempts: 3, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: true },
-    );
-    return doc;
+    // Generate inline (sub-second) and return the READY record. The web client
+    // polls getDocument() and will see READY on its first poll.
+    await this.generator.generate({ orgId, documentId: doc.id, orderId, type });
+    return this.getDocument(orgId, doc.id);
   }
 
   async getDocument(orgId: string, id: string) {

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { BullModule } from '@nestjs/bullmq';
 import configuration, { AppConfig } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -39,16 +38,6 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
         const t = config.get('throttle', { infer: true });
         return [{ ttl: t.ttl * 1000, limit: t.limit }];
       },
-    }),
-    BullModule.forRoot({
-      connection: (() => {
-        const url = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
-        return {
-          host: url.hostname,
-          port: Number(url.port || 6379),
-          password: url.password || undefined,
-        };
-      })(),
     }),
     PrismaModule,
     AuthModule,

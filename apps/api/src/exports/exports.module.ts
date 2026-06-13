@@ -1,17 +1,16 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bullmq';
 import { ReportsModule } from '../reports/reports.module';
 import { ExportsController } from './exports.controller';
-import { ExportsService, DOCUMENTS_QUEUE } from './exports.service';
+import { ExportsService } from './exports.service';
 import { ExcelService } from './excel.service';
 import { PdfService } from './pdf.service';
 import { StorageService } from './storage.service';
-import { DocumentsProcessor } from './documents.processor';
+import { DocumentGenerator } from './document-generator.service';
 
 @Module({
-  imports: [ReportsModule, BullModule.registerQueue({ name: DOCUMENTS_QUEUE })],
+  imports: [ReportsModule],
   controllers: [ExportsController],
-  providers: [ExportsService, ExcelService, PdfService, StorageService, DocumentsProcessor],
+  providers: [ExportsService, ExcelService, PdfService, StorageService, DocumentGenerator],
   exports: [ExportsService],
 })
 export class ExportsModule {}

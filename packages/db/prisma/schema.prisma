@@ -15,11 +15,18 @@
 
 generator client {
   provider = "prisma-client-js"
+  // "native" for local dev; the rhel target is required by Vercel's serverless
+  // runtime (Amazon Linux 2 / OpenSSL 3).
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (e.g. Neon pooler / PgBouncer) used at runtime.
+  url       = env("DATABASE_URL")
+  // Direct, unpooled connection used for migrations. Falls back to DATABASE_URL
+  // locally where the two are the same.
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
