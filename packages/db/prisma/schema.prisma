@@ -101,6 +101,8 @@ enum LedgerAccount {
   COGS // cost of goods sold (brick purchase)
   TRUCK_EXPENSE
   GENERAL_EXPENSE
+  RENTAL_INCOME // income from lending an own truck out on rent (no brick math)
+  RENTAL_RECEIVABLE // rent owed by a renter for a lent-out own truck
   GST_OUTPUT_PAYABLE
   GST_INPUT_CREDIT
   OWNERS_EQUITY
@@ -114,8 +116,16 @@ enum JournalRefType {
   TRUCK_EXPENSE
   GENERAL_EXPENSE
   STOCK_PURCHASE
+  TRUCK_RENTAL // own truck lent out — rent income accrued
+  TRUCK_RENTAL_PAYMENT // rent collected against a lending agreement
   ADJUSTMENT
   OPENING_BALANCE
+}
+
+enum TruckRentalStatus {
+  ACTIVE // truck currently lent out
+  COMPLETED // returned / engagement finished
+  CANCELLED // agreement voided
 }
 
 enum SyncOperation {
@@ -196,6 +206,8 @@ model Organization {
   factories         Factory[]
   ownTrucks         OwnTruck[]
   hiredTrucks       HiredTruck[]
+  truckRentals        TruckRental[]
+  truckRentalPayments TruckRentalPayment[]
   drivers           Driver[]
   stockBatches      StockBatch[]
   orders            Order[]
@@ -414,10 +426,62 @@ model OwnTruck {
   orders       Order[]
   expenses     TruckExpense[]
   stockBatches StockBatch[]
+  rentals      TruckRental[]
 
   @@unique([orgId, number])
   @@index([orgId, isActive])
   @@map("own_trucks")
+}
+
+// An own truck lent out to a third party on rent. Income is the agreed rent
+// only — no brick/order math is involved. Rent is recognised on creation
+// (DR rental receivable / CR rental income) and collected via TruckRentalPayment.
+model TruckRental {
+  id             String            @id @default(cuid())
+  orgId          String
+  ownTruckId     String
+  renterName     String
+  renterPhone    String?
+  rentAmountPaise Int              // total agreed rent for the engagement
+  startDate      DateTime
+  endDate        DateTime?
+  status         TruckRentalStatus @default(ACTIVE)
+  notes          String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+
+  org      Organization        @relation(fields: [orgId], references: [id])
+  ownTruck OwnTruck            @relation(fields: [ownTruckId], references: [id])
+  payments TruckRentalPayment[]
+
+  @@index([orgId, status])
+  @@index([ownTruckId])
+  @@index([deletedAt])
+  @@map("truck_rentals")
+}
+
+model TruckRentalPayment {
+  id            String      @id @default(cuid())
+  orgId         String
+  truckRentalId String
+  amountPaise   Int
+  paymentMode   PaymentMode
+  paymentDate   DateTime
+  remarks       String?
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  org    Organization @relation(fields: [orgId], references: [id])
+  rental TruckRental  @relation(fields: [truckRentalId], references: [id])
+
+  @@index([orgId, paymentDate])
+  @@index([truckRentalId])
+  @@index([deletedAt])
+  @@map("truck_rental_payments")
 }
 
 model Driver {
@@ -613,6 +677,7 @@ model JournalEntry {
   factoryId     String?
   hiredTruckId  String?
   ownTruckId    String?
+  truckRentalId String?
   createdById   String?
   createdAt     DateTime       @default(now())
 
@@ -624,6 +689,7 @@ model JournalEntry {
   @@index([orgId, creditAccount])
   @@index([customerId])
   @@index([factoryId])
+  @@index([truckRentalId])
   @@map("journal_entries")
 }
 
