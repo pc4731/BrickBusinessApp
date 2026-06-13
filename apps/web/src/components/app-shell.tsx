@@ -9,6 +9,7 @@ import {
   Factory,
   Truck,
   TruckIcon,
+  Handshake,
   UserCog,
   Settings,
   Menu,
@@ -51,6 +52,7 @@ const NAV: NavItem[] = [
   { href: '/factories', labelKey: 'nav.factories', icon: Factory },
   { href: '/trucks', labelKey: 'nav.trucks', icon: Truck },
   { href: '/hired-trucks', labelKey: 'nav.hiredTrucks', icon: TruckIcon },
+  { href: '/rentals', labelKey: 'nav.rentals', icon: Handshake },
   { href: '/drivers', labelKey: 'nav.drivers', icon: IdCard },
   { href: '/users', labelKey: 'nav.users', icon: UserCog, roles: ['OWNER'] },
   { href: '/audit', labelKey: 'nav.audit', icon: ScrollText, roles: ['OWNER'] },
@@ -61,17 +63,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const t = useT();
-  const { user, accessToken, refreshToken, clear } = useAuthStore();
+  const { user, accessToken, refreshToken, hasHydrated, clear } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (!accessToken) router.replace('/login');
-  }, [accessToken, router]);
+    // Wait for the persisted session to rehydrate before deciding to redirect,
+    // otherwise a page refresh bounces to /login before localStorage is read.
+    if (hasHydrated && !accessToken) router.replace('/login');
+  }, [hasHydrated, accessToken, router]);
 
   // Close the mobile drawer on navigation.
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  if (!accessToken) return null;
+  if (!hasHydrated || !accessToken) return null;
 
   const role = user?.role;
   const items = NAV.filter((i) => !i.roles || (role && i.roles.includes(role)));
