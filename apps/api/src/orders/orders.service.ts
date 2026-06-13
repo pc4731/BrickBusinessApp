@@ -393,6 +393,12 @@ export class OrdersService {
         select: { id: true },
       });
       if (!t) throw new BadRequestException('Own truck not found');
+      // A truck currently lent out on rent can't carry our own deliveries.
+      const rented = await this.prisma.truckRental.findFirst({
+        where: { orgId, ownTruckId: refs.ownTruckId, status: 'ACTIVE', deletedAt: null },
+        select: { id: true },
+      });
+      if (rented) throw new BadRequestException('This truck is currently lent out on rent');
     }
     if (refs.hiredTruckId) {
       const t = await this.prisma.hiredTruck.findFirst({

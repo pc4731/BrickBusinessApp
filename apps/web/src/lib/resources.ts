@@ -37,6 +37,8 @@ import type {
   StockSummaryRow,
   TrendPoint,
   TruckExpenseRow,
+  TruckRental,
+  TruckRentalPaymentRow,
   UserRow,
 } from './entities';
 
@@ -64,6 +66,35 @@ export const factoriesApi = {
 export const ownTrucksApi = resource<OwnTruck>('own-trucks');
 export const driversApi = resource<Driver>('drivers');
 export const hiredTrucksApi = resource<HiredTruck>('hired-trucks');
+
+export interface RentalListParams extends ListParams {
+  status?: string;
+  ownTruckId?: string;
+}
+
+export const rentalsApi = {
+  list: (params?: RentalListParams) => {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set('page', String(params.page));
+    if (params?.limit) sp.set('limit', String(params.limit));
+    if (params?.search) sp.set('search', params.search);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.ownTruckId) sp.set('ownTruckId', params.ownTruckId);
+    const qs = sp.toString();
+    return api<PaginatedResult<TruckRental>>(`/truck-rentals${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => api<TruckRental>(`/truck-rentals/${id}`),
+  create: (body: Record<string, unknown>) =>
+    api<TruckRental>('/truck-rentals', { method: 'POST', body }),
+  setStatus: (id: string, status: string) =>
+    api<TruckRental>(`/truck-rentals/${id}/status`, { method: 'PATCH', body: { status } }),
+  remove: (id: string) => api<void>(`/truck-rentals/${id}`, { method: 'DELETE' }),
+  listPayments: (id: string) => api<TruckRentalPaymentRow[]>(`/truck-rentals/${id}/payments`),
+  recordPayment: (id: string, body: Record<string, unknown>) =>
+    api<TruckRentalPaymentRow>(`/truck-rentals/${id}/payments`, { method: 'POST', body }),
+  removePayment: (paymentId: string) =>
+    api<void>(`/truck-rentals/payments/${paymentId}`, { method: 'DELETE' }),
+};
 
 export interface StockListParams extends ListParams {
   brickClass?: string;

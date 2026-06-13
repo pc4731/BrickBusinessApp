@@ -18,7 +18,7 @@ export default function LoginPage() {
   const t = useT();
   const setSession = useAuthStore((s) => s.setSession);
   const setLang = useLangStore((s) => s.setLang);
-  const [email, setEmail] = useState('owner@balajibricks.example');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const mutation = useMutation({

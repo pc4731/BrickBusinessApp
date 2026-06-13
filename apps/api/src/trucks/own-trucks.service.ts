@@ -45,7 +45,14 @@ export class OwnTrucksService {
       this.prisma.ownTruck.findMany({ where, orderBy: { number: 'asc' }, skip: query.skip, take: query.limit }),
       this.prisma.ownTruck.count({ where }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    // Flag trucks that are currently lent out so the UI can hide them from orders.
+    const rented = await this.prisma.truckRental.findMany({
+      where: { orgId, status: 'ACTIVE', deletedAt: null, ownTruckId: { in: data.map((t) => t.id) } },
+      select: { ownTruckId: true },
+    });
+    const rentedIds = new Set(rented.map((r) => r.ownTruckId));
+    const withFlag = data.map((t) => ({ ...t, isRented: rentedIds.has(t.id) }));
+    return paginate(withFlag, total, query.page, query.limit);
   }
 
   async findOne(orgId: string, id: string) {

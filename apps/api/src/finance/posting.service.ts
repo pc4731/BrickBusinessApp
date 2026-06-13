@@ -17,6 +17,7 @@ interface RowInput {
   factoryId?: string;
   hiredTruckId?: string;
   ownTruckId?: string;
+  truckRentalId?: string;
   createdById?: string;
 }
 
@@ -48,6 +49,7 @@ export class PostingService {
         factoryId: e.factoryId,
         hiredTruckId: e.hiredTruckId,
         ownTruckId: e.ownTruckId,
+        truckRentalId: e.truckRentalId,
         createdById: e.createdById,
       },
     });
@@ -242,6 +244,66 @@ export class PostingService {
     });
   }
 
+  /**
+   * Own truck lent out on rent: recognise the full agreed rent as income now,
+   * with a receivable until it's collected. No brick/GST math — rent only.
+   */
+  postTruckRental(
+    tx: Tx,
+    args: {
+      orgId: string;
+      rentalId: string;
+      ownTruckId: string;
+      amountPaise: number;
+      entryDate: Date;
+      description: string;
+      createdById?: string;
+    },
+  ) {
+    return this.row(tx, {
+      orgId: args.orgId,
+      entryDate: args.entryDate,
+      description: args.description,
+      refType: JournalRefType.TRUCK_RENTAL,
+      refId: args.rentalId,
+      debitAccount: LedgerAccount.RENTAL_RECEIVABLE,
+      creditAccount: LedgerAccount.RENTAL_INCOME,
+      amountPaise: args.amountPaise,
+      ownTruckId: args.ownTruckId,
+      truckRentalId: args.rentalId,
+      createdById: args.createdById,
+    });
+  }
+
+  /** Rent collected against a lending agreement → clears the rental receivable. */
+  postTruckRentalPayment(
+    tx: Tx,
+    args: {
+      orgId: string;
+      paymentId: string;
+      rentalId: string;
+      ownTruckId: string;
+      mode: PaymentMode;
+      amountPaise: number;
+      entryDate: Date;
+      createdById?: string;
+    },
+  ) {
+    return this.row(tx, {
+      orgId: args.orgId,
+      entryDate: args.entryDate,
+      description: 'Truck rent received',
+      refType: JournalRefType.TRUCK_RENTAL_PAYMENT,
+      refId: args.paymentId,
+      debitAccount: cashAccount(args.mode),
+      creditAccount: LedgerAccount.RENTAL_RECEIVABLE,
+      amountPaise: args.amountPaise,
+      ownTruckId: args.ownTruckId,
+      truckRentalId: args.rentalId,
+      createdById: args.createdById,
+    });
+  }
+
   postTruckExpense(
     tx: Tx,
     args: {
@@ -321,6 +383,7 @@ export class PostingService {
         factoryId: e.factoryId ?? undefined,
         hiredTruckId: e.hiredTruckId ?? undefined,
         ownTruckId: e.ownTruckId ?? undefined,
+        truckRentalId: e.truckRentalId ?? undefined,
         createdById: args.createdById,
       });
     }

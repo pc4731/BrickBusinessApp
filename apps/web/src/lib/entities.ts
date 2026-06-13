@@ -67,6 +67,34 @@ export interface OwnTruck {
   fitnessExpiry?: string | null;
   isActive: boolean;
   notes?: string | null;
+  // True when the truck is currently lent out on rent (set by the list endpoint).
+  isRented?: boolean;
+}
+
+export type TruckRentalStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export interface TruckRental {
+  id: string;
+  ownTruckId: string;
+  ownTruck?: { number: string } | null;
+  renterName: string;
+  renterPhone?: string | null;
+  rentAmountPaise: number;
+  startDate: string;
+  endDate?: string | null;
+  status: TruckRentalStatus;
+  notes?: string | null;
+  paidPaise: number;
+  pendingPaise: number;
+}
+
+export interface TruckRentalPaymentRow {
+  id: string;
+  truckRentalId: string;
+  amountPaise: number;
+  paymentMode: string;
+  paymentDate: string;
+  remarks?: string | null;
 }
 
 export interface Driver {
@@ -207,6 +235,7 @@ export interface FinanceDashboard {
     cogsPaise: number;
     truckExpensePaise: number;
     generalExpensePaise: number;
+    rentalIncomePaise: number;
     totalExpensesPaise: number;
     grossProfitPaise: number;
     netProfitPaise: number;
@@ -223,6 +252,7 @@ export interface FinanceDashboard {
     netPayablePaise: number;
     advanceToFactoryPaise: number;
     hiredTruckPayablePaise: number;
+    rentalReceivablePaise: number;
   };
 }
 

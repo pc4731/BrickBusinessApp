@@ -84,6 +84,12 @@ export default function FinancePage() {
             <Kpi label="Bank balance" value={formatINR(bal.bankPaise)} />
             <Kpi label="Receivable (net)" value={formatINR(bal.netReceivablePaise)} tone="good" />
             <Kpi label="Payable (net)" value={formatINR(bal.netPayablePaise)} tone="bad" />
+            {(pl.rentalIncomePaise > 0 || bal.rentalReceivablePaise > 0) && (
+              <>
+                <Kpi label="Rental income" value={formatINR(pl.rentalIncomePaise)} tone="good" />
+                <Kpi label="Rent due" value={formatINR(bal.rentalReceivablePaise)} tone="good" />
+              </>
+            )}
           </div>
         </>
       )}

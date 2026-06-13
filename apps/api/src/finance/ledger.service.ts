@@ -63,9 +63,11 @@ export class LedgerService {
     const cogs = this.debitNormal(pl, LedgerAccount.COGS);
     const truckExpense = this.debitNormal(pl, LedgerAccount.TRUCK_EXPENSE);
     const generalExpense = this.debitNormal(pl, LedgerAccount.GENERAL_EXPENSE);
+    // Truck-rent income is a separate income stream (no brick/COGS), added below gross profit.
+    const rentalIncome = this.creditNormal(pl, LedgerAccount.RENTAL_INCOME);
     const grossProfit = revenue - cogs;
     const totalExpenses = truckExpense + generalExpense;
-    const netProfit = grossProfit - totalExpenses;
+    const netProfit = grossProfit + rentalIncome - totalExpenses;
 
     const receivable = this.debitNormal(bal, LedgerAccount.CUSTOMER_RECEIVABLE);
     const advanceFromCustomer = this.creditNormal(bal, LedgerAccount.ADVANCE_FROM_CUSTOMER);
@@ -79,6 +81,7 @@ export class LedgerService {
         cogsPaise: cogs,
         truckExpensePaise: truckExpense,
         generalExpensePaise: generalExpense,
+        rentalIncomePaise: rentalIncome,
         totalExpensesPaise: totalExpenses,
         grossProfitPaise: grossProfit,
         netProfitPaise: netProfit,
@@ -95,6 +98,7 @@ export class LedgerService {
         netPayablePaise: payable - advanceToFactory,
         advanceToFactoryPaise: advanceToFactory,
         hiredTruckPayablePaise: hiredTruckPayable,
+        rentalReceivablePaise: this.debitNormal(bal, LedgerAccount.RENTAL_RECEIVABLE),
       },
     };
   }

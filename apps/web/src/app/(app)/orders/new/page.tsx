@@ -404,11 +404,13 @@ export default function NewOrderPage() {
               <Field label="Own truck" hint="Cost merged into order costing per settings">
                 <Select value={ownTruckId} onChange={(e) => setOwnTruckId(e.target.value)}>
                   <option value="">— Select —</option>
-                  {ownTrucks.data?.data.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.number}
-                    </option>
-                  ))}
+                  {ownTrucks.data?.data
+                    .filter((t) => !t.isRented)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.number}
+                      </option>
+                    ))}
                 </Select>
               </Field>
             ) : (
