@@ -6,6 +6,7 @@ interface DateRange {
   dateFrom?: string;
   dateTo?: string;
   customerId?: string;
+  renter?: string;
 }
 
 const rupees = (paise: number) => Math.round(paise) / 100;
@@ -45,6 +46,10 @@ export class ExcelService {
       case 'customer-statement':
         if (!range.customerId) throw new BadRequestException('customerId is required');
         await this.customerStatement(wb, orgId, range.customerId, range);
+        break;
+      case 'rental-statement':
+        if (!range.renter) throw new BadRequestException('renter is required');
+        await this.rentalStatement(wb, orgId, range.renter, range);
         break;
       default:
         throw new BadRequestException(`Unknown report: ${report}`);
@@ -271,6 +276,45 @@ export class ExcelService {
       payWs.addRow([p.date, p.orderNumber ?? 'Advance', p.mode, p.type, rupees(p.amountPaise), p.remarks ?? '']),
     );
     payWs.getColumn(5).numFmt = MONEY_FMT;
+    payWs.columns.forEach((c) => (c.width = Math.max(c.width ?? 10, 14)));
+  }
+
+  private async rentalStatement(
+    wb: ExcelJS.Workbook,
+    orgId: string,
+    renter: string,
+    range: DateRange,
+  ) {
+    const s = await this.reports.rentalStatement(orgId, renter, range);
+
+    const ws = wb.addWorksheet('Rentals');
+    ws.addRow([`Rental statement — ${s.renter}`]).font = { bold: true, size: 14 };
+    ws.addRow([
+      `Agreed rent: ${rupees(s.totals.totalRentPaise)}`,
+      `Paid: ${rupees(s.totals.totalPaidPaise)}`,
+      `Pending: ${rupees(s.totals.pendingPaise)}`,
+    ]);
+    ws.addRow([]);
+
+    const headerRow = ws.addRow([
+      'Truck', 'Start', 'End', 'Status', 'Agreed rent', 'Paid', 'Pending', 'Notes',
+    ]);
+    headerRow.font = { bold: true };
+    s.rentals.forEach((r) =>
+      ws.addRow([
+        r.truckNumber, r.startDate, r.endDate ?? '', r.status,
+        rupees(r.rentAmountPaise), rupees(r.paidPaise), rupees(r.pendingPaise), r.notes ?? '',
+      ]),
+    );
+    [5, 6, 7].forEach((c) => (ws.getColumn(c).numFmt = MONEY_FMT));
+    ws.columns.forEach((c) => (c.width = Math.max(c.width ?? 10, 12)));
+
+    const payWs = wb.addWorksheet('Rent payments');
+    payWs.addRow(['Date', 'Truck', 'Mode', 'Amount', 'Remarks']).font = { bold: true };
+    s.payments.forEach((p) =>
+      payWs.addRow([p.date, p.truckNumber, p.mode, rupees(p.amountPaise), p.remarks ?? '']),
+    );
+    payWs.getColumn(4).numFmt = MONEY_FMT;
     payWs.columns.forEach((c) => (c.width = Math.max(c.width ?? 10, 14)));
   }
 }

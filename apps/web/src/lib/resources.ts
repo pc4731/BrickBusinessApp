@@ -32,6 +32,7 @@ import type {
   PaymentReportRow,
   PnlReport,
   PurchaseRow,
+  RentalStatement,
   StockBatch,
   StockReportRow,
   StockSummaryRow,
@@ -238,6 +239,13 @@ export const reportsApi = {
   stock: () => api<StockReportRow[]>('/reports/stock'),
   customerStatement: (customerId: string, p?: DateRangeParams) =>
     api<CustomerStatement>(`/reports/customer/${customerId}${rangeQs(p)}`),
+  rentalRenters: () => api<string[]>('/reports/rental-renters'),
+  rentalStatement: (renter: string, p?: DateRangeParams) => {
+    const sp = new URLSearchParams({ renter });
+    if (p?.dateFrom) sp.set('dateFrom', p.dateFrom);
+    if (p?.dateTo) sp.set('dateTo', p.dateTo);
+    return api<RentalStatement>(`/reports/rentals?${sp.toString()}`);
+  },
 };
 
 export const notificationsApi = {

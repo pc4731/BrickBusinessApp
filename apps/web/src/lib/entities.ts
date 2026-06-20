@@ -97,6 +97,38 @@ export interface TruckRentalPaymentRow {
   remarks?: string | null;
 }
 
+export interface RentalStatementRental {
+  id: string;
+  truckNumber: string;
+  startDate: string;
+  endDate: string | null;
+  status: TruckRentalStatus;
+  rentAmountPaise: number;
+  paidPaise: number;
+  pendingPaise: number;
+  notes: string | null;
+}
+
+export interface RentalStatementPayment {
+  id: string;
+  date: string;
+  truckNumber: string;
+  mode: string;
+  amountPaise: number;
+  remarks: string | null;
+}
+
+export interface RentalStatement {
+  renter: string;
+  rentals: RentalStatementRental[];
+  payments: RentalStatementPayment[];
+  totals: {
+    totalRentPaise: number;
+    totalPaidPaise: number;
+    pendingPaise: number;
+  };
+}
+
 export interface Driver {
   id: string;
   name: string;

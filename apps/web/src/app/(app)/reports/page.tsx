@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CustomerStatementView } from '@/components/customer-statement';
+import { RentalStatementView } from '@/components/rental-statement';
 
 const REPORTS = [
   { key: 'pnl', label: 'Profit & Loss' },
@@ -26,6 +27,7 @@ const REPORTS = [
   { key: 'gst', label: 'GST Report' },
   { key: 'stock', label: 'Stock Report' },
   { key: 'customer-statement', label: 'Customer Statement' },
+  { key: 'rental-statement', label: 'Rental Statement' },
 ] as const;
 
 type ReportKey = (typeof REPORTS)[number]['key'];
@@ -35,14 +37,22 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [renter, setRenter] = useState('');
   const range: DateRangeParams = { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined };
   const isCustomerStatement = report === 'customer-statement';
-  const usesDate = report !== 'stock' && !isCustomerStatement;
+  const isRentalStatement = report === 'rental-statement';
+  const usesDate = report !== 'stock' && !isCustomerStatement && !isRentalStatement;
 
   const customers = useQuery({
     queryKey: ['customers', 'all'],
     queryFn: () => customersApi.list({ limit: 200 }),
     enabled: isCustomerStatement,
+  });
+
+  const renters = useQuery({
+    queryKey: ['reports', 'rental-renters'],
+    queryFn: () => reportsApi.rentalRenters(),
+    enabled: isRentalStatement,
   });
 
   const [downloading, setDownloading] = useState(false);
@@ -82,6 +92,18 @@ export default function ReportsPage() {
               </Select>
             </Field>
           )}
+          {isRentalStatement && (
+            <Field label="Renter">
+              <Select value={renter} onChange={(e) => setRenter(e.target.value)}>
+                <option value="">Select renter…</option>
+                {renters.data?.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           {usesDate && (
             <>
               <Field label="From">
@@ -92,7 +114,7 @@ export default function ReportsPage() {
               </Field>
             </>
           )}
-          {!isCustomerStatement && (
+          {!isCustomerStatement && !isRentalStatement && (
             <Button variant="outline" onClick={exportExcel} disabled={downloading}>
               <Download className="h-4 w-4" /> {downloading ? 'Preparing…' : 'Export Excel'}
             </Button>
@@ -112,6 +134,12 @@ export default function ReportsPage() {
           <CustomerStatementView customerId={customerId} />
         ) : (
           <p className="text-sm text-muted-foreground">Select a customer to view their statement.</p>
+        ))}
+      {isRentalStatement &&
+        (renter ? (
+          <RentalStatementView renter={renter} />
+        ) : (
+          <p className="text-sm text-muted-foreground">Select a renter to view their rental statement.</p>
         ))}
     </div>
   );

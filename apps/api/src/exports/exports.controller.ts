@@ -45,9 +45,10 @@ export class ExportsController {
     @Query('dateFrom') dateFrom: string | undefined,
     @Query('dateTo') dateTo: string | undefined,
     @Query('customerId') customerId: string | undefined,
+    @Query('renter') renter: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const buffer = await this.excel.generate(orgId, report, { dateFrom, dateTo, customerId });
+    const buffer = await this.excel.generate(orgId, report, { dateFrom, dateTo, customerId, renter });
     res.set('Content-Disposition', `attachment; filename="${report}-report.xlsx"`);
     return new StreamableFile(buffer);
   }

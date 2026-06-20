@@ -46,6 +46,21 @@ export class ReportsController {
     return this.reports.stockReport(orgId);
   }
 
+  @Get('rental-renters')
+  rentalRenters(@CurrentOrg() orgId: string) {
+    return this.reports.rentalRenters(orgId);
+  }
+
+  @Get('rentals')
+  rentalStatement(
+    @CurrentOrg() orgId: string,
+    @Query('renter') renter: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.reports.rentalStatement(orgId, renter, { dateFrom, dateTo });
+  }
+
   @Get('customer/:customerId')
   customerStatement(
     @CurrentOrg() orgId: string,

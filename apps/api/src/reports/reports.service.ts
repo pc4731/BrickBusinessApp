@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, LedgerAccount } from '@brick/db';
+import { Prisma, LedgerAccount, TruckRentalStatus } from '@brick/db';
 import { DEFAULT_ORG_SETTINGS, type OrgSettings } from '@brick/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeOrderSummary } from '../orders/order-financials.util';
@@ -450,6 +450,94 @@ export class ReportsService {
         totalPaidPaise,
         advancePaise,
         netPendingPaise,
+      },
+    };
+  }
+
+  /** Distinct renter names that appear on truck rentals (for the report picker). */
+  async rentalRenters(orgId: string): Promise<string[]> {
+    const rows = await this.prisma.truckRental.findMany({
+      where: { orgId, deletedAt: null },
+      select: { renterName: true },
+      distinct: ['renterName'],
+      orderBy: { renterName: 'asc' },
+    });
+    return rows.map((r) => r.renterName);
+  }
+
+  /**
+   * Rental statement for one renter (a customer of our trucks): every rental
+   * they took (truck, dates, agreed rent, paid, pending) plus every rent
+   * payment, with totals. Cancelled rentals are listed but excluded from the
+   * agreed-rent total (their income accrual was reversed).
+   */
+  async rentalStatement(orgId: string, renter: string, range: DateRange) {
+    const startFilter =
+      range.dateFrom || range.dateTo
+        ? { startDate: { ...(range.dateFrom ? { gte: new Date(range.dateFrom) } : {}), ...(range.dateTo ? { lte: new Date(range.dateTo) } : {}) } }
+        : {};
+
+    const rentals = await this.prisma.truckRental.findMany({
+      where: {
+        orgId,
+        deletedAt: null,
+        renterName: { equals: renter, mode: 'insensitive' },
+        ...startFilter,
+      },
+      orderBy: { startDate: 'asc' },
+      include: { ownTruck: { select: { number: true } } },
+    });
+
+    const payments = rentals.length
+      ? await this.prisma.truckRentalPayment.findMany({
+          where: { orgId, deletedAt: null, truckRentalId: { in: rentals.map((r) => r.id) } },
+          orderBy: { paymentDate: 'asc' },
+        })
+      : [];
+
+    const paidByRental = new Map<string, number>();
+    for (const p of payments) {
+      paidByRental.set(p.truckRentalId, (paidByRental.get(p.truckRentalId) ?? 0) + p.amountPaise);
+    }
+    const truckByRental = new Map(rentals.map((r) => [r.id, r.ownTruck?.number ?? '—']));
+
+    const rentalRows = rentals.map((r) => {
+      const paidPaise = paidByRental.get(r.id) ?? 0;
+      return {
+        id: r.id,
+        truckNumber: r.ownTruck?.number ?? '—',
+        startDate: ymd(r.startDate),
+        endDate: r.endDate ? ymd(r.endDate) : null,
+        status: r.status,
+        rentAmountPaise: r.rentAmountPaise,
+        paidPaise,
+        pendingPaise: r.rentAmountPaise - paidPaise,
+        notes: r.notes ?? null,
+      };
+    });
+
+    const paymentRows = payments.map((p) => ({
+      id: p.id,
+      date: ymd(p.paymentDate),
+      truckNumber: truckByRental.get(p.truckRentalId) ?? '—',
+      mode: p.paymentMode,
+      amountPaise: p.amountPaise,
+      remarks: p.remarks ?? null,
+    }));
+
+    const totalRentPaise = rentals
+      .filter((r) => r.status !== TruckRentalStatus.CANCELLED)
+      .reduce((s, r) => s + r.rentAmountPaise, 0);
+    const totalPaidPaise = payments.reduce((s, p) => s + p.amountPaise, 0);
+
+    return {
+      renter,
+      rentals: rentalRows,
+      payments: paymentRows,
+      totals: {
+        totalRentPaise,
+        totalPaidPaise,
+        pendingPaise: totalRentPaise - totalPaidPaise,
       },
     };
   }
